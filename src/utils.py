@@ -1,19 +1,35 @@
 # src/utils.py
 import json
 import os
+# from langchain_core.documents import Document # Not strictly needed here if we only expect dicts or convert Documents
 
-def save_text_chunks(text_chunks_with_metadata, file_path):
+def save_text_chunks(chunked_data, file_path):
     """
-    Saves the list of text chunks (which are dicts with metadata) to a JSON file.
+    Saves the list of text chunks to a JSON file.
+    If chunked_data contains Langchain Document objects, they are converted to dicts.
     Args:
-        text_chunks_with_metadata (list of dict): The chunks to save.
+        chunked_data (list): The chunks to save. Can be list of dicts or list of Document objects.
         file_path (str): The path to the JSON file.
     """
     try:
-        # Ensure the directory exists
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        data_to_save = []
+        # Check if the first item has page_content and metadata attributes, common for Document objects
+        if chunked_data and hasattr(chunked_data[0], 'page_content') and hasattr(chunked_data[0], 'metadata'):
+            # Convert list of Document objects to list of dicts
+            data_to_save = [
+                {"page_content": doc.page_content, "metadata": doc.metadata}
+                for doc in chunked_data
+            ]
+            print(f"Converted {len(chunked_data)} Document objects to dicts for saving in utils.save_text_chunks.")
+        else:
+            # Assume it's already a list of dicts
+            data_to_save = chunked_data
+            # print(f"Data in utils.save_text_chunks is already a list of dicts or not recognized as Documents.")
+
         with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(text_chunks_with_metadata, f, indent=4)
+            json.dump(data_to_save, f, indent=4)
         print(f"Text chunks successfully saved to {file_path}")
     except Exception as e:
         print(f"Error saving text chunks to {file_path}: {e}")

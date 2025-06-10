@@ -1,11 +1,13 @@
 # Main script to run the RAG pipeline
 
 from src.ingestion import load_and_extract_text_from_pdfs, get_pdf_paths_from_directory
-from src.chunking import chunk_text
+from src.chunking import chunk_text # chunk_text now expects list[Document] and returns list[Document]
 from src.embedding import create_embeddings, build_and_save_faiss_index, load_faiss_index, embed_query
 from src.retrieval import search_faiss_index
 from src.generation import generate_llm_response
-from src.utils import save_text_chunks, load_text_chunks # For saving/loading the text chunks
+# utils.py uses save_chunks_to_json and load_chunks_from_json from chunking.py
+from src.utils import save_text_chunks, load_text_chunks 
+from langchain_core.documents import Document # Import Document
 
 import os
 import json # If saving/loading chunks as json
@@ -52,27 +54,34 @@ def run_indexing_pipeline(): # Removed source_directory parameter
         return
 
     print(f"Found {len(pdf_files)} PDF(s) to process.")
+    # all_texts_with_sources is a list of dicts: [{'text': ..., 'source': ..., 'page': ...}, ...]
     all_texts_with_sources = load_and_extract_text_from_pdfs(pdf_files)
 
     if not all_texts_with_sources:
         print("No text could be extracted from the PDFs.")
         return
 
-    # The 'all_texts_with_sources' variable should be a list of dictionaries,
-    # each containing 'text', 'source', and 'page'. This is what chunk_text expects.
-    # texts_to_chunk = [item['text'] for item in all_texts_with_sources] # No longer needed
-    # source_metadata = [{ "source": item['source'], "page": item.get('page') } for item in all_texts_with_sources] # No longer needed
+    # Convert list of dicts to list of Langchain Document objects
+    documents_to_chunk = [
+        Document(page_content=item['text'], metadata={'source': item['source'], 'page': item.get('page', 'N/A')})
+        for item in all_texts_with_sources
+    ]
 
-    text_chunks_with_metadata = chunk_text(all_texts_with_sources, CHUNK_SIZE, CHUNK_OVERLAP)
+    if not documents_to_chunk:
+        print("No documents could be prepared for chunking.")
+        return
 
-    if not text_chunks_with_metadata:
+    # chunk_text now expects list[Document] and returns list[Document]
+    chunked_documents = chunk_text(documents_to_chunk, CHUNK_SIZE, CHUNK_OVERLAP)
+
+    if not chunked_documents:
         print("No chunks were created from the text.")
         return
 
-    print(f"Created {len(text_chunks_with_metadata)} chunks.")
+    print(f"Created {len(chunked_documents)} chunks.")
 
-    # Separate actual text for embedding and metadata for storage
-    actual_text_chunks = [chunk['text'] for chunk in text_chunks_with_metadata]
+    # Extract page_content for embedding from the list of Document objects
+    actual_text_chunks = [doc.page_content for doc in chunked_documents]
 
     embeddings = create_embeddings(actual_text_chunks, EMBEDDING_MODEL_NAME)
     if embeddings is None or len(embeddings) == 0:
@@ -82,7 +91,8 @@ def run_indexing_pipeline(): # Removed source_directory parameter
     print(f"Generated {len(embeddings)} embeddings.")
 
     build_and_save_faiss_index(embeddings, INDEX_PATH)
-    save_text_chunks(text_chunks_with_metadata, TEXT_CHUNKS_PATH) # Save chunks with metadata
+    # save_text_chunks now handles list[Document] via chunking.py's save_chunks_to_json
+    save_text_chunks(chunked_documents, TEXT_CHUNKS_PATH) 
 
     print(f"FAISS index built and saved to {INDEX_PATH}")
     print(f"Text chunks saved to {TEXT_CHUNKS_PATH}")
@@ -92,14 +102,15 @@ def run_query_pipeline():
     """Runs the query processing part of the pipeline."""
     print("Starting query pipeline...")
     if not os.path.exists(INDEX_PATH) or not os.path.exists(TEXT_CHUNKS_PATH):
-        print("Index or text chunks not found. Please run the indexing pipeline first using 'python main.py index'.")
+        print("Index or text chunks not found. Please run the indexing pipeline first.") # Removed 'python main.py index'
         return
 
     faiss_index = load_faiss_index(INDEX_PATH)
-    # Load the text_chunks_with_metadata that were saved during indexing
-    text_chunks_with_metadata = load_text_chunks(TEXT_CHUNKS_PATH)
+    # load_text_chunks (via chunking.py's load_chunks_from_json) returns list[dict]
+    # where each dict is {'page_content': ..., 'metadata': ...}
+    loaded_chunk_data = load_text_chunks(TEXT_CHUNKS_PATH)
 
-    if faiss_index is None or text_chunks_with_metadata is None:
+    if faiss_index is None or not loaded_chunk_data: # Check if loaded_chunk_data is empty
         print("Failed to load FAISS index or text chunks.")
         return
 
@@ -113,26 +124,29 @@ def run_query_pipeline():
         print("Failed to embed query.")
         return
 
-    # The search_faiss_index should return indices, which we then use to get chunks from text_chunks_with_metadata
     retrieved_indices, _ = search_faiss_index(query_embedding, faiss_index, top_k=TOP_K_RESULTS)
 
-    relevant_chunks_with_metadata = [text_chunks_with_metadata[i] for i in retrieved_indices]
-    # Extract just the text for the LLM, but keep metadata if you want to show sources
-    relevant_texts = [chunk['text'] for chunk in relevant_chunks_with_metadata]
+    # relevant_chunk_data will be a list of dicts from loaded_chunk_data
+    relevant_chunk_data = [loaded_chunk_data[i] for i in retrieved_indices]
+    
+    # Extract page_content from the dictionaries
+    relevant_texts = [chunk['page_content'] for chunk in relevant_chunk_data]
 
     if not relevant_texts:
         print("No relevant documents found for your query.")
         return
 
-    print(f"\nRetrieved {len(relevant_texts)} relevant chunks for your query.")
+    print(f"\\nRetrieved {len(relevant_texts)} relevant chunks for your query.")
 
     answer = generate_llm_response(user_query, relevant_texts, LLM_MODEL_NAME)
 
-    print("\n--- Answer ---")
+    print("\\n--- Answer ---")
     print(answer)
-    print("\n--- Sources ---")
-    for i, chunk_meta in enumerate(relevant_chunks_with_metadata):
-        print(f"[{i+1}] Source: {chunk_meta.get('source', 'N/A')}, Page: {chunk_meta.get('page', 'N/A')}")
+    print("\\n--- Sources ---")
+    for i, chunk_data in enumerate(relevant_chunk_data):
+        source = chunk_data['metadata'].get('source', 'N/A')
+        page = chunk_data['metadata'].get('page', 'N/A')
+        print(f"[{i+1}] Source: {source}, Page: {page}")
 
 if __name__ == "__main__":
     action = input("Do you want to 'index' new documents or 'query' the existing knowledge base? (index/query): ").strip().lower()
