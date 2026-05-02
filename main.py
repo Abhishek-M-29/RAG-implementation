@@ -1,40 +1,31 @@
 # Main script to run the RAG pipeline
 
-from src.ingestion import load_and_extract_text_from_pdfs, get_pdf_paths_from_directory
-from src.chunking import chunk_text # chunk_text now expects list[Document] and returns list[Document]
-from src.embedding import create_embeddings, build_and_save_faiss_index, load_faiss_index, embed_query
-from src.retrieval import search_faiss_index
-from src.generation import generate_llm_response
-# utils.py uses save_chunks_to_json and load_chunks_from_json from chunking.py
-from src.utils import save_text_chunks, load_text_chunks 
-from langchain_core.documents import Document # Import Document
-
 import os
-import json # If saving/loading chunks as json
 
 # --- Configuration ---
 # Paths
-INDEX_PATH = "index_store/faiss_index.idx"
-TEXT_CHUNKS_PATH = "index_store/text_chunks.json" # Path to store/load text chunks
+INDEX_PATH = "index_store/faiss_index"
 
-# Models (using placeholders, replace with actual model identifiers)
-EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-LLM_MODEL_NAME = "gemini-2.0-flash" # Updated to reflect Gemini usage and specific model path
+# Models
+LLM_MODEL_NAME = "gemini-3-flash-preview"
 
 # Chunking parameters
-CHUNK_SIZE = 1000 # Characters or tokens, depending on your chunking strategy
+CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 100
 
 # Retrieval parameters
-TOP_K_RESULTS = 5 # Increased from 3 to 5
+TOP_K_RESULTS = 5
 
 def ensure_directories_exist():
     """Ensures that necessary output directories exist."""
     os.makedirs("index_store", exist_ok=True)
-    # No longer printing PDF_DIRECTORY guidance here
 
-def run_indexing_pipeline(): # Removed source_directory parameter
+def run_indexing_pipeline():
     """Runs the data ingestion, chunking, embedding, and indexing part of the pipeline."""
+    from src.ingestion import load_and_extract_text_from_pdfs, get_pdf_paths_from_directory
+    from src.chunking import chunk_text
+    from src.embedding import build_and_save_faiss_index
+    from langchain_core.documents import Document
     
     source_directory = input("Please enter the path to the directory containing your PDF files: ").strip()
     if not source_directory:
@@ -42,19 +33,18 @@ def run_indexing_pipeline(): # Removed source_directory parameter
         return
 
     print(f"Starting indexing pipeline for source directory: {source_directory}...")
-    ensure_directories_exist() # Ensures index_store exists
+    ensure_directories_exist()
 
     if not os.path.isdir(source_directory):
         print(f"Error: Source directory '{source_directory}' not found or is not a directory.")
         return
 
-    pdf_files = get_pdf_paths_from_directory(source_directory) # Use the passed argument
+    pdf_files = get_pdf_paths_from_directory(source_directory)
     if not pdf_files:
         print(f"No PDF files found in {source_directory}. Please add some PDFs and try again.")
         return
 
     print(f"Found {len(pdf_files)} PDF(s) to process.")
-    # all_texts_with_sources is a list of dicts: [{'text': ..., 'source': ..., 'page': ...}, ...]
     all_texts_with_sources = load_and_extract_text_from_pdfs(pdf_files)
 
     if not all_texts_with_sources:
@@ -71,7 +61,6 @@ def run_indexing_pipeline(): # Removed source_directory parameter
         print("No documents could be prepared for chunking.")
         return
 
-    # chunk_text now expects list[Document] and returns list[Document]
     chunked_documents = chunk_text(documents_to_chunk, CHUNK_SIZE, CHUNK_OVERLAP)
 
     if not chunked_documents:
@@ -80,38 +69,25 @@ def run_indexing_pipeline(): # Removed source_directory parameter
 
     print(f"Created {len(chunked_documents)} chunks.")
 
-    # Extract page_content for embedding from the list of Document objects
-    actual_text_chunks = [doc.page_content for doc in chunked_documents]
-
-    embeddings = create_embeddings(actual_text_chunks, EMBEDDING_MODEL_NAME)
-    if embeddings is None or len(embeddings) == 0:
-        print("Failed to create embeddings.")
+    vectorstore = build_and_save_faiss_index(chunked_documents, INDEX_PATH)
+    
+    if vectorstore is None:
+        print("Failed to create and save index.")
         return
 
-    print(f"Generated {len(embeddings)} embeddings.")
-
-    build_and_save_faiss_index(embeddings, INDEX_PATH)
-    # save_text_chunks now handles list[Document] via chunking.py's save_chunks_to_json
-    save_text_chunks(chunked_documents, TEXT_CHUNKS_PATH) 
-
-    print(f"FAISS index built and saved to {INDEX_PATH}")
-    print(f"Text chunks saved to {TEXT_CHUNKS_PATH}")
     print("Indexing pipeline completed.")
 
 def run_query_pipeline():
     """Runs the query processing part of the pipeline."""
     print("Starting query pipeline...")
-    if not os.path.exists(INDEX_PATH) or not os.path.exists(TEXT_CHUNKS_PATH):
-        print("Index or text chunks not found. Please run the indexing pipeline first.") # Removed 'python main.py index'
-        return
-
-    faiss_index = load_faiss_index(INDEX_PATH)
-    # load_text_chunks (via chunking.py's load_chunks_from_json) returns list[dict]
-    # where each dict is {'page_content': ..., 'metadata': ...}
-    loaded_chunk_data = load_text_chunks(TEXT_CHUNKS_PATH)
-
-    if faiss_index is None or not loaded_chunk_data: # Check if loaded_chunk_data is empty
-        print("Failed to load FAISS index or text chunks.")
+    from src.embedding import load_faiss_index
+    from src.retrieval import search_faiss_index
+    from src.generation import generate_llm_response
+    
+    vectorstore = load_faiss_index(INDEX_PATH)
+    
+    if vectorstore is None:
+        print("Failed to load FAISS index. Please run the indexing pipeline first.")
         return
 
     user_query = input("Please enter your question: ")
@@ -119,33 +95,34 @@ def run_query_pipeline():
         print("No query entered.")
         return
 
-    query_embedding = embed_query(user_query, EMBEDDING_MODEL_NAME)
-    if query_embedding is None:
-        print("Failed to embed query.")
-        return
+    relevant_docs = search_faiss_index(user_query, vectorstore, top_k=TOP_K_RESULTS)
 
-    retrieved_indices, _ = search_faiss_index(query_embedding, faiss_index, top_k=TOP_K_RESULTS)
-
-    # relevant_chunk_data will be a list of dicts from loaded_chunk_data
-    relevant_chunk_data = [loaded_chunk_data[i] for i in retrieved_indices]
-    
-    # Extract page_content from the dictionaries
-    relevant_texts = [chunk['page_content'] for chunk in relevant_chunk_data]
-
-    if not relevant_texts:
+    if not relevant_docs:
         print("No relevant documents found for your query.")
         return
 
-    print(f"\\nRetrieved {len(relevant_texts)} relevant chunks for your query.")
+    print(f"\nRetrieved {len(relevant_docs)} relevant chunks for your query.")
 
-    answer = generate_llm_response(user_query, relevant_texts, LLM_MODEL_NAME)
+    desired_marks_str = input("How many marks is this question worth (e.g., 2, 5, 10)? Press Enter for default detail: ").strip()
+    desired_marks = None
+    if desired_marks_str:
+        try:
+            desired_marks = int(desired_marks_str)
+            if desired_marks <= 0:
+                print("Marks should be a positive number. Using default detail.")
+                desired_marks = None
+        except ValueError:
+            print("Invalid input for marks. Using default detail.")
+            desired_marks = None
 
-    print("\\n--- Answer ---")
+    answer = generate_llm_response(user_query, relevant_docs, LLM_MODEL_NAME, desired_marks=desired_marks)
+
+    print("\n--- Answer ---")
     print(answer)
-    print("\\n--- Sources ---")
-    for i, chunk_data in enumerate(relevant_chunk_data):
-        source = chunk_data['metadata'].get('source', 'N/A')
-        page = chunk_data['metadata'].get('page', 'N/A')
+    print("\n--- Sources ---")
+    for i, doc in enumerate(relevant_docs):
+        source = doc.metadata.get('source', 'N/A')
+        page = doc.metadata.get('page', 'N/A')
         print(f"[{i+1}] Source: {source}, Page: {page}")
 
 if __name__ == "__main__":

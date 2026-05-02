@@ -3,11 +3,11 @@
 # Using LangChain's RecursiveCharacterTextSplitter for semantic chunking.
 
 import json
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document # Import Document
 
 # def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> list[str]: # Old signature
-def chunk_text(documents_to_split: list[Document], chunk_size: int = 1000, chunk_overlap: int = 200) -> list[Document]: # New signature
+def chunk_text(documents_to_split: list[Document], chunk_size: int = 2500, chunk_overlap: int = 250) -> list[Document]: # New signature
     """
     Splits a list of LangChain Document objects into smaller chunks.
 

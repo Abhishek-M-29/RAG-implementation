@@ -43,12 +43,12 @@ The system follows these main steps:
     *   **Output:** A list of the most relevant text chunks (the context).
 
 8.  **Feed to LLM and Generate Response:**
-    *   **LLM:** A Large Language Model (e.g., GPT-3.5/4, Llama 2, Mistral, or other models available via API or locally).
+    *   **LLM:** A Large Language Model, specifically Google's **Gemini 3 Flash Preview** (`gemini-3-flash-preview`).
     *   **Process:**
         *   Construct a prompt for the LLM. This prompt should include:
             *   The retrieved relevant text chunks (the context).
             *   The original user query.
-            *   Clear instructions for the LLM to answer the query *based only on the provided context*.
+            *   Clear instructions for the LLM to answer the query *based only on the provided context* and output in formatted Markdown.
         *   Send this augmented prompt to the LLM.
         *   Receive the generated text from the LLM.
     *   **Output:** The final answer to the user's query.

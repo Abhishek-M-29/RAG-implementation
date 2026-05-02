@@ -1,6 +1,10 @@
-pypdf
-sentence-transformers
-faiss-cpu
-numpy
-google-generativeai
-langchain
+langchain>=0.3.18
+langchain-community>=0.3.18
+langchain-google-genai>=2.1.0
+langchain-huggingface>=0.1.2
+sentence-transformers>=2.5.1
+faiss-cpu>=1.9.0
+pypdf>=4.1.0
+python-dotenv>=1.0.1
+numpy>=2.1
+streamlit>=1.33.0

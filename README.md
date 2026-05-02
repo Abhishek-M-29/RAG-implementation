@@ -1,6 +1,6 @@
 # RAG Implementation with Gemini
 
-This project implements a Retrieval Augmented Generation (RAG) system that uses PDF documents as a knowledge base and the Gemini API (gemini-1.0-flash or similar) for generating answers.
+This project implements a Retrieval Augmented Generation (RAG) system that uses PDF documents as a knowledge base and the Gemini API (gemini-3-flash-preview) for generating formatted Markdown answers.
 
 ## Features
 
@@ -65,7 +65,10 @@ This project implements a Retrieval Augmented Generation (RAG) system that uses 
     ```python
     # src/generation.py
     # ...
-    api_key = "AIzaSyBXzi17iCVtVcqAz4QaI6lITij1udpx_GA" # Your hardcoded key
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY") # Load from .env
     # ...
     ```
     Replace `"AIzaSyBXzi17iCVtVcqAz4QaI6lITij1udpx_GA"` with your actual Google Gemini API key.
@@ -112,7 +115,7 @@ The system will retrieve relevant chunks from your documents and use the Gemini 
 *   `INDEX_PATH`: Path to the FAISS index file.
 *   `TEXT_CHUNKS_PATH`: Path to the JSON file storing text chunks.
 *   `EMBEDDING_MODEL_NAME`: Sentence Transformer model for embeddings (default: `"sentence-transformers/all-MiniLM-L6-v2"`).
-*   `LLM_MODEL_NAME`: Gemini model for generation (e.g., `"models/gemini-pro"`, `"gemini-1.0-flash"`). Currently set to `"gemini-2.0-flash"` (Note: this model name might need adjustment based on availability, the code in `src/generation.py` will attempt to list models if the specified one fails).
+*   `LLM_MODEL_NAME`: Gemini model for generation (e.g., `"gemini-3-flash-preview"`, `"gemini-1.5-pro"`). Currently set to `"gemini-3-flash-preview"` (Note: this model name might need adjustment based on availability, the code in `src/generation.py` will attempt to use the specified model).
 *   `CHUNK_SIZE`: Target size of text chunks (in characters).
 *   `CHUNK_OVERLAP`: Character overlap between chunks.
 *   `TOP_K_RESULTS`: Number of relevant chunks to retrieve and pass to the LLM.
