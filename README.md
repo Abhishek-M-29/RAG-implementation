@@ -4,11 +4,13 @@ This project implements a Retrieval Augmented Generation (RAG) system that uses 
 
 ## Features
 
-*   PDF text extraction and chunking.
-*   Vector embeddings using Sentence Transformers.
-*   FAISS for efficient similarity search (vector database).
-*   Answer generation using Google's Gemini API.
-*   CLI for indexing new documents and querying the knowledge base.
+*   **LangChain LCEL Pipeline:** Clean, unified generation orchestration relying efficiently on standard LangChain abstractions.
+*   **Native Document Ingestion:** Built-in PDF parsing mapping directly into `Document` schemas using `PyPDFLoader`.
+*   **Conversational Memory:** Context-aware `RunnableWithMessageHistory` to seamlessly facilitate follow-up questions contextually instead of generic stateless interaction.
+*   **Semantic Text Splitters:** Configurable text chunking (`RecursiveCharacterTextSplitter`) explicitly balancing semantic continuity vs context bloat.
+*   **Vector embeddings:** Leveraging open-source `sentence-transformers` embedded into a scalable FAISS vector store database index system.
+*   **Answer generation:** Utilizing Google's Gemini API (`gemini-3-flash-preview`).
+*   **Streamlit UI:** Centralized WebUI interface enabling intuitive PDF file-uploads via an expandable interface directly embedded in chat workflows (removing legacy sidebar-dependency).
 
 ## Project Structure
 
@@ -110,15 +112,15 @@ Once your documents are indexed, you can ask questions.
 
 The system will retrieve relevant chunks from your documents and use the Gemini API to generate an answer based *only* on that context. The answer and the sources (document name and page number) will be displayed.
 
-## Configuration Parameters (in `main.py`)
+## Configuration Parameters
 
-*   `INDEX_PATH`: Path to the FAISS index file.
-*   `TEXT_CHUNKS_PATH`: Path to the JSON file storing text chunks.
-*   `EMBEDDING_MODEL_NAME`: Sentence Transformer model for embeddings (default: `"sentence-transformers/all-MiniLM-L6-v2"`).
-*   `LLM_MODEL_NAME`: Gemini model for generation (e.g., `"gemini-3-flash-preview"`, `"gemini-1.5-pro"`). Currently set to `"gemini-3-flash-preview"` (Note: this model name might need adjustment based on availability, the code in `src/generation.py` will attempt to use the specified model).
-*   `CHUNK_SIZE`: Target size of text chunks (in characters).
-*   `CHUNK_OVERLAP`: Character overlap between chunks.
-*   `TOP_K_RESULTS`: Number of relevant chunks to retrieve and pass to the LLM.
+Both `main.py` and `app.py` support the following primary configuration behaviors adjusting vector searches and model utilization explicitly:
+
+*   `INDEX_PATH`: Default destination for storing/querying FAISS (`index_store/faiss_index.idx`).
+*   `CHUNK_SIZE = 1000`: How long individual snippet breakdowns of PDF pages should functionally be in absolute character volume. (Lower ensures tighter embeddings, higher avoids context-starvation).
+*   `CHUNK_OVERLAP = 100`: The sliding window overlapping value explicitly stitching text concepts together traversing arbitrary line breaks. 
+*   `TOP_K_RESULTS = 5`: Limits explicit vector similarity matching context directly down to appending the top 5 matches into the generation pipeline explicitly dynamically.
+*   `LLM_MODEL_NAME = "gemini-3-flash-preview"`: Google API integration parameter declaring runtime.
 
 ## To Do / Potential Improvements
 

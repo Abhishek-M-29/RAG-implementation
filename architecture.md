@@ -1,62 +1,87 @@
-# RAG System Architecture
+# Comprehensive RAG System Architecture
 
-This document outlines the architecture for a Retrieval Augmented Generation (RAG) system.
+This document describes the detailed architecture, core pipeline, and software stack used for this Retrieval-Augmented Generation (RAG) implementation.
 
-## Core Pipeline Steps
+## Technology Stack & Libraries
 
-The system follows these main steps:
+The system leverages a powerful stack built primarily around the LangChain ecosystem to orchestrate the flow.
 
-1.  **PDF Reading:**
-    *   **Tool/Library:** `pypdf` (or similar Python PDF processing library).
-    *   **Process:** Load PDF documents provided by the user. Extract raw text content from these PDFs.
-    *   **Output:** Plain text extracted from the PDFs.
+*   **Framework:** `langchain`, `langchain-community`, and `langchain-classic` for end-to-end pipeline orchestration, leveraging LangChain Expression Language (LCEL).
+*   **User Interface:** `streamlit` for the dynamic web-based interface (via `app.py`) and a standard Python CLI pipeline (via `main.py`).
+*   **Document Ingestion:** `PyPDFLoader` from LangChain natively parses and extracts raw text from complex PDF documents into `Document` objects.
+*   **Vector Embeddings:** `sentence-transformers/all-MiniLM-L6-v2` via `langchain-huggingface`. This open-source lightweight model produces dense, highly-performant vector representations of text.
+*   **Vector Database:** `faiss-cpu` (Facebook AI Similarity Search) acts as the high-performance local vector store.
+*   **Generation (LLM):** `gemini-3-flash-preview` via Google's `langchain-google-genai` integration for inference and summarization.
+*   **Memory Management:** `RunnableWithMessageHistory` to persist chat context across conversational turns.
 
-2.  **Chunk the Data:**
-    *   **Process:** Take the extracted plain text and divide it into smaller, manageable, and semantically coherent chunks. This is important for effective embedding and for fitting within the context window of LLMs.
-    *   **Considerations:** Chunk size, overlap between chunks.
-    *   **Output:** A list of text chunks.
+---
 
-3.  **Make Vector Embeddings and Store in Vector Database:**
-    *   **Embedding Model:** A sentence transformer model (e.g., from Hugging Face like `all-MiniLM-L6-v2`) or an API-based model (e.g., OpenAI's `text-embedding-ada-002`).
-    *   **Vector Database:** FAISS (Facebook AI Similarity Search).
-    *   **Process:**
-        *   For each text chunk, generate a numerical vector representation (embedding) using the chosen embedding model.
-        *   Store these embeddings in a FAISS index. This index will allow for efficient similarity searches.
-        *   It's also crucial to store the original text chunks in a way that they can be retrieved using the results from the FAISS index (e.g., by storing them in a list or a simple key-value store where the index in FAISS corresponds to the index/key of the text chunk).
-    *   **Output:** A FAISS index containing the embeddings and a corresponding store of the text chunks.
+## The RAG Pipeline
 
-4.  **Get Query from User:**
-    *   **Process:** Provide an interface (e.g., command-line input, web UI) for the user to submit their question or query.
-    *   **Output:** The user's query as a string.
+The architecture is split into two distinct operational phases:
 
-5.  **Embed the Query:**
-    *   **Process:** Take the user's query and convert it into a vector embedding using the *exact same embedding model* that was used in Step 3 for the documents.
-    *   **Output:** A query vector.
+### Phase 1: Ingestion & Indexing Pipeline (Offline/Upload Setup)
 
-6.  **Find Cosine Similarity (or other distance metric) in Vector DB:**
-    *   **Process:** Use the query vector to search the FAISS index. FAISS will calculate the similarity (e.g., cosine similarity, L2 distance) between the query embedding and all the chunk embeddings stored in the index.
-    *   **Output:** A list of similarities/distances and the indices of the corresponding chunks in the FAISS index.
+This phase transforms raw PDF data into a searchable, mathematical format stored locally.
 
-7.  **Pick the Top Few Embeddings (Most Relevant Chunks):**
-    *   **Process:** Based on the similarity scores from Step 6, select the top-k most relevant/similar chunks.
-    *   Retrieve the actual text of these top-k chunks using the indices obtained from FAISS and the stored text chunks.
-    *   **Output:** A list of the most relevant text chunks (the context).
+1.  **PDF Loading & Extraction (`src/ingestion.py`)**
+    *   **Process:** User uploads a PDF via the Streamlit interface (saved temporarily) or designates a folder (`data/`) via CLI.
+    *   **Library:** Multi-page PDF binary files are natively ingested via LangChain's `PyPDFLoader`. 
+    *   **Output:** List of `langchain_core.documents.Document` objects holding text and metadata natively.
 
-8.  **Feed to LLM and Generate Response:**
-    *   **LLM:** A Large Language Model, specifically Google's **Gemini 3 Flash Preview** (`gemini-3-flash-preview`).
-    *   **Process:**
-        *   Construct a prompt for the LLM. This prompt should include:
-            *   The retrieved relevant text chunks (the context).
-            *   The original user query.
-            *   Clear instructions for the LLM to answer the query *based only on the provided context* and output in formatted Markdown.
-        *   Send this augmented prompt to the LLM.
-        *   Receive the generated text from the LLM.
-    *   **Output:** The final answer to the user's query.
+2.  **Semantic Text Chunking (`src/chunking.py`)**
+    *   **Process:** The raw extracted text is split into semantic units to maximize the contextual efficiency of the LLM and the accuracy of the similarity search.
+    *   **Mechanics:** Uses LangChain's `RecursiveCharacterTextSplitter`.
+    *   **Configuration:**
+        *   **Chunk Size:** `1000` characters (ensures documents are broken down into digestible contextual concepts).
+        *   **Chunk Overlap:** `100` characters (prevents hard semantic boundaries by sliding the window slightly backwards, maintaining context across consecutive chunks).
+    *   **Output:** Array of smaller, manageable `Document` chunks mapping exact strings seamlessly back to their original document logic via propagated metadata.
 
-## Data Flow Summary
+3.  **Vector Embedding & FAISS Store Generation (`src/embedding.py`)**
+    *   **Process:** Text chunks are transformed into floating-point numerical vectors.
+    *   **Embeddings:** LangChain orchestrates `HuggingFaceEmbeddings` processing text through the `all-MiniLM-L6-v2` model.
+    *   **Storage Index:** FAISS maps these embeddings into an optimized mathematical index space (saved into `/index_store/faiss_index/...`).
 
-**Indexing Phase (Offline):**
-`PDFs` -> `Text Extraction (pypdf)` -> `Raw Text` -> `Chunking` -> `Text Chunks` -> `Embedding Model` -> `Vector Embeddings` -> `FAISS Index`
+### Phase 2: Retrieval & Generation Pipeline (Online/Real-time Querying)
 
-**Querying Phase (Online):**
-`User Query` -> `Embedding Model` -> `Query Embedding` -> `FAISS Search (with Index)` -> `Top-k Relevant Chunk Indices` -> `Retrieve Text Chunks` -> `Context + Query` -> `LLM` -> `Answer`
+This phase takes a user prompt, retrieves relevant contexts, and returns a verified LLM response.
+
+1.  **User Inquiry Processing (`app.py` / `main.py`)**
+    *   **Process:** Text query is captured from the user inside the Streamlit chat input or CLI terminal.
+
+2.  **Query Embedding (`src/retrieval.py`)**
+    *   **Process:** The raw text query is embedded using the exact same Hugging Face `all-MiniLM-L6-v2` model to match the dimensional layout of the FAISS index.
+
+3.  **Semantic Search (FAISS Retrieval)**
+    *   **Process:** The VectorStore `as_retriever()` implicitly converts the FAISS index into a LangChain Retriever interface, finding the Top K=5 most contextually relevant chunks.
+
+4.  **Generation Pipeline (`src/generation.py`)**
+    *   **Process:** Utilizing LCEL, the application links context aggregation (`create_stuff_documents_chain`) and query linking (`create_retrieval_chain`). 
+    *   **Memory:** Contextual injection is powered by wrapping the RAG pipeline in `RunnableWithMessageHistory` to sync past turns of Q&A history alongside the new query natively.
+    *   **Output:** The LLM generates the final comprehensive text mapped off the provided context.
+
+---
+
+## Architectural Data Flow Summary
+
+```mermaid
+graph TD
+    %% Ingestion Flow
+    subgraph Phase1 [Phase 1: Ingestion & Indexing]
+        A[PDF Documents] -->|PyPDFLoader| B(Document Extraction)
+        B -->|LangChain Splitter| C(Text Chunking - Size: 1000)
+        C -->|HuggingFace Embedder| D(Vector Generation)
+        D -->|Save & Persist| E[(FAISS Vector DB)]
+    end
+
+    %% Retrieval Flow
+    subgraph Phase2 [Phase 2: LCEL Unified Rag Chain]
+        F[User Query] -->|RunnableWithMessageHistory| G(Chat History Context injection)
+        G -->|as_retriever| E
+        E -->|Top K=5 Matches| H[Relevant Context chunks]
+        H --> I(create_stuff_documents_chain)
+        G -->|Query Context| I
+        I -->|API Call| J{Gemini 3 Flash Preview LLM}
+        J -->|Markdown Render| K[Final Answer]
+    end
+```

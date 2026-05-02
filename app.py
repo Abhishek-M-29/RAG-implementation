@@ -5,9 +5,9 @@ import tempfile
 from src.ingestion import load_and_extract_text_from_pdfs
 from src.chunking import chunk_text
 from src.embedding import build_and_save_faiss_index, load_faiss_index
-from src.retrieval import search_faiss_index
-from src.generation import generate_llm_response
-from langchain_core.documents import Document
+from src.generation import get_rag_chain
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_core.messages import HumanMessage, AIMessage
 
 # --- Configuration ---
 INDEX_PATH = "index_store/faiss_index"
@@ -16,55 +16,59 @@ CHUNK_OVERLAP = 100
 TOP_K_RESULTS = 5
 LLM_MODEL_NAME = "gemini-3-flash-preview"
 
-st.set_page_config(page_title="Minimal RAG App", layout="centered")
-st.title("Minimal RAG System")
+st.set_page_config(page_title="IntelliRAG Agent", layout="centered")
 
-# Initialize chat history
+st.title("📚 IntelliRAG Assistant")
+st.markdown("Upload your PDF document to start querying intelligently using a LangChain-powered RAG pipeline.")
+
+# Initialize chat history and mapping
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = ChatMessageHistory()
 
-# Sidebar for file upload
-with st.sidebar:
-    st.header("Document Upload")
-    uploaded_file = st.file_uploader("Upload a PDF document", type=["pdf"])
+def get_session_history(session_id: str) -> ChatMessageHistory:
+    return st.session_state.chat_history
+
+# Expandable section for document upload replacing the sidebar
+with st.expander("📄 Document Management", expanded=not os.path.exists(INDEX_PATH)):
+    uploaded_file = st.file_uploader("Upload a PDF document to the internal knowledge base", type=["pdf"], label_visibility="collapsed")
     
-    if st.button("Index Document") and uploaded_file is not None:
-        with st.status("Processing Document...", expanded=True) as status:
+    if st.button("Process & Index Document", use_container_width=True) and uploaded_file is not None:
+        with st.status("Processing Document into Vector Store...", expanded=True) as status:
             try:
                 # 1. Save uploaded file to temp dir
-                st.write("Saving file...")
+                st.write("Initializing file ingestion...")
                 temp_dir = tempfile.mkdtemp()
                 temp_file_path = os.path.join(temp_dir, uploaded_file.name)
                 with open(temp_file_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
                 
-                # 2. Extract Text
-                st.write("Extracting text...")
-                extracted_data = load_and_extract_text_from_pdfs([temp_file_path])
+                # 2. Extract Text via PyPDFLoader
+                st.write("Extracting content natively with LangChain PyPDFLoader...")
+                extracted_documents = load_and_extract_text_from_pdfs([temp_file_path])
                 
-                if not extracted_data:
+                if not extracted_documents:
                     status.update(label="No text extracted", state="error")
                 else:
                     # 3. Chunking
-                    st.write("Chunking text...")
-                    documents_to_chunk = [
-                        Document(page_content=item['text'], metadata={'source': item['source'], 'page': item.get('page', 'N/A')})
-                        for item in extracted_data
-                    ]
-                    chunked_documents = chunk_text(documents_to_chunk, CHUNK_SIZE, CHUNK_OVERLAP)
+                    st.write(f"Chunking {len(extracted_documents)} documents into semantic sequences...")
+                    chunked_documents = chunk_text(extracted_documents, CHUNK_SIZE, CHUNK_OVERLAP)
                     
                     # 4. Building Index
-                    st.write("Building FAISS index...")
+                    st.write("Building and persisting FAISS Vector Index...")
                     os.makedirs(os.path.dirname(INDEX_PATH), exist_ok=True)
                     vectorstore = build_and_save_faiss_index(chunked_documents, INDEX_PATH)
                     
                     if vectorstore:
-                        status.update(label="Indexing complete!", state="complete")
+                        status.update(label="Document fully indexed and ready for querying!", state="complete")
                     else:
-                        status.update(label="Failed to build index", state="error")
+                        status.update(label="Failed to build index.", state="error")
                         
             except Exception as e:
-                status.update(label=f"Error: {e}", state="error")
+                status.update(label=f"Processing Request Error: {e}", state="error")
+
+st.divider()
 
 # Display chat messages from history on app rerun
 for message in st.session_state.messages:
@@ -73,7 +77,7 @@ for message in st.session_state.messages:
 
 # Accept user input
 if prompt := st.chat_input("Ask a question about the document..."):
-    # Add user message to chat history
+    # Add user message to chat history UI sync
     st.session_state.messages.append({"role": "user", "content": prompt})
     
     # Display user message in chat message container
@@ -89,13 +93,26 @@ if prompt := st.chat_input("Ask a question about the document..."):
             if vectorstore is None:
                 response = "Please upload and index a document first."
             else:
-                relevant_docs = search_faiss_index(prompt, vectorstore, top_k=TOP_K_RESULTS)
-                if not relevant_docs:
-                    response = "No relevant information found in the document."
-                else:
-                    response = generate_llm_response(prompt, relevant_docs, LLM_MODEL_NAME)
+                try:
+                    # Use the entire pipeline through standard invocation structure
+                    rag_chain = get_rag_chain(
+                        vectorstore, 
+                        top_k=TOP_K_RESULTS, 
+                        llm_model_name=LLM_MODEL_NAME, 
+                        get_session_history=get_session_history
+                    )
+                    
+                    # Execute LCEL RunnableWithMessageHistory wrapper
+                    result = rag_chain.invoke(
+                        {"input": prompt},
+                        config={"configurable": {"session_id": "default_streamlit_session"}}
+                    )
+                    response = result["answer"]
+                except Exception as e:
+                    response = f"Error during generation: {e}"
         
         message_placeholder.markdown(response)
         
-        # Add assistant response to chat history
+        # Add assistant response to chat history UI sync 
+        # (Internal ChatMessageHistory is updated automatically by runnable)
         st.session_state.messages.append({"role": "assistant", "content": response})

@@ -37,9 +37,9 @@ def chunk_text(documents_to_split: list[Document], chunk_size: int = 2500, chunk
     # Original logging was for create_documents, adjust if necessary or rely on main.py logging
     # For example:
     # print(f"Processed {len(documents_to_split)} original documents.")
-    print(f"Number of chunks created: {len(split_chunks_docs)}")
-    if split_chunks_docs:
-        print(f"Example chunk (first 50 chars): '{split_chunks_docs[0].page_content[:50]}...'")
+    # print(f"Number of chunks created: {len(split_chunks_docs)}")
+    # if split_chunks_docs:
+        # print(f"Example chunk (first 50 chars): '{split_chunks_docs[0].page_content[:50]}...'")
         # print(f"Metadata of first chunk: {split_chunks_docs[0].metadata}") # Useful for debugging
         
     return split_chunks_docs
