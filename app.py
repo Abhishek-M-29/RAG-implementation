@@ -18,7 +18,7 @@ LLM_MODEL_NAME = "gemini-3-flash-preview"
 
 st.set_page_config(page_title="IntelliRAG Agent", layout="centered")
 
-st.title("📚 IntelliRAG Assistant")
+st.title("RAG Implementation for docs with LangChain Workflow")
 st.markdown("Upload your PDF document to start querying intelligently using a LangChain-powered RAG pipeline.")
 
 # Initialize chat history and mapping

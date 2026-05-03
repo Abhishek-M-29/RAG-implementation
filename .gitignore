@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 index_store/
 data/
+test_*.py

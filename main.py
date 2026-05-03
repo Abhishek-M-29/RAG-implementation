@@ -45,23 +45,13 @@ def run_indexing_pipeline():
         return
 
     print(f"Found {len(pdf_files)} PDF(s) to process.")
-    all_texts_with_sources = load_and_extract_text_from_pdfs(pdf_files)
+    all_documents = load_and_extract_text_from_pdfs(pdf_files)
 
-    if not all_texts_with_sources:
+    if not all_documents:
         print("No text could be extracted from the PDFs.")
         return
 
-    # Convert list of dicts to list of Langchain Document objects
-    documents_to_chunk = [
-        Document(page_content=item['text'], metadata={'source': item['source'], 'page': item.get('page', 'N/A')})
-        for item in all_texts_with_sources
-    ]
-
-    if not documents_to_chunk:
-        print("No documents could be prepared for chunking.")
-        return
-
-    chunked_documents = chunk_text(documents_to_chunk, CHUNK_SIZE, CHUNK_OVERLAP)
+    chunked_documents = chunk_text(all_documents, CHUNK_SIZE, CHUNK_OVERLAP)
 
     if not chunked_documents:
         print("No chunks were created from the text.")
@@ -79,10 +69,10 @@ def run_indexing_pipeline():
 
 def run_query_pipeline():
     """Runs the query processing part of the pipeline."""
-    print("Starting query pipeline...")
+    print("Starting CLI query pipeline...")
     from src.embedding import load_faiss_index
-    from src.retrieval import search_faiss_index
-    from src.generation import generate_llm_response
+    from src.generation import get_rag_chain
+    from langchain_community.chat_message_histories import ChatMessageHistory
     
     vectorstore = load_faiss_index(INDEX_PATH)
     
@@ -90,40 +80,37 @@ def run_query_pipeline():
         print("Failed to load FAISS index. Please run the indexing pipeline first.")
         return
 
-    user_query = input("Please enter your question: ")
-    if not user_query:
-        print("No query entered.")
+    # Prepare an in-memory session history for the CLI
+    cli_history = ChatMessageHistory()
+    def get_session_history(session_id: str):
+        return cli_history
+
+    try:
+        rag_chain = get_rag_chain(vectorstore, top_k=TOP_K_RESULTS, llm_model_name=LLM_MODEL_NAME, get_session_history=get_session_history)
+    except Exception as e:
+        print(f"Error initializing RAG chain: {e}")
         return
 
-    relevant_docs = search_faiss_index(user_query, vectorstore, top_k=TOP_K_RESULTS)
+    while True:
+        user_query = input("\nPlease enter your question (or type 'exit' to quit): ").strip()
+        if user_query.lower() in ['exit', 'quit']:
+            break
+            
+        if not user_query:
+            continue
 
-    if not relevant_docs:
-        print("No relevant documents found for your query.")
-        return
-
-    print(f"\nRetrieved {len(relevant_docs)} relevant chunks for your query.")
-
-    desired_marks_str = input("How many marks is this question worth (e.g., 2, 5, 10)? Press Enter for default detail: ").strip()
-    desired_marks = None
-    if desired_marks_str:
+        print("\nThinking...")
         try:
-            desired_marks = int(desired_marks_str)
-            if desired_marks <= 0:
-                print("Marks should be a positive number. Using default detail.")
-                desired_marks = None
-        except ValueError:
-            print("Invalid input for marks. Using default detail.")
-            desired_marks = None
+            result = rag_chain.invoke(
+                {"input": user_query},
+                config={"configurable": {"session_id": "cli_session"}}
+            )
+            answer = result["answer"]
 
-    answer = generate_llm_response(user_query, relevant_docs, LLM_MODEL_NAME, desired_marks=desired_marks)
-
-    print("\n--- Answer ---")
-    print(answer)
-    print("\n--- Sources ---")
-    for i, doc in enumerate(relevant_docs):
-        source = doc.metadata.get('source', 'N/A')
-        page = doc.metadata.get('page', 'N/A')
-        print(f"[{i+1}] Source: {source}, Page: {page}")
+            print("\n--- Answer ---")
+            print(answer)
+        except Exception as e:
+            print(f"Error generating answer: {e}")
 
 if __name__ == "__main__":
     action = input("Do you want to 'index' new documents or 'query' the existing knowledge base? (index/query): ").strip().lower()
