@@ -15,6 +15,7 @@ CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 100
 TOP_K_RESULTS = 5
 LLM_MODEL_NAME = "gemini-3-flash-preview"
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB per file
 
 st.set_page_config(page_title="IntelliRAG Agent", layout="centered")
 
@@ -32,38 +33,55 @@ def get_session_history(session_id: str) -> ChatMessageHistory:
 
 # Expandable section for document upload replacing the sidebar
 with st.expander("📄 Document Management", expanded=not os.path.exists(INDEX_PATH)):
-    uploaded_file = st.file_uploader("Upload a PDF document to the internal knowledge base", type=["pdf"], label_visibility="collapsed")
+    uploaded_files = st.file_uploader(
+        "Upload PDF documents to the internal knowledge base (Max 50MB per file)", 
+        type=["pdf"], 
+        accept_multiple_files=True,
+        label_visibility="collapsed"
+    )
     
-    if st.button("Process & Index Document", use_container_width=True) and uploaded_file is not None:
-        with st.status("Processing Document into Vector Store...", expanded=True) as status:
+    if st.button("Process & Index Documents", use_container_width=True) and uploaded_files:
+        with st.status("Processing Documents into Vector Store...", expanded=True) as status:
             try:
-                # 1. Save uploaded file to temp dir
                 st.write("Initializing file ingestion...")
                 temp_dir = tempfile.mkdtemp()
-                temp_file_path = os.path.join(temp_dir, uploaded_file.name)
-                with open(temp_file_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
+                temp_file_paths = []
                 
-                # 2. Extract Text via PyPDFLoader
-                st.write("Extracting content natively with LangChain PyPDFLoader...")
-                extracted_documents = load_and_extract_text_from_pdfs([temp_file_path])
+                # Validate and save all uploaded files
+                for uploaded_file in uploaded_files:
+                    file_size = uploaded_file.size
+                    if file_size > MAX_FILE_SIZE:
+                        st.error(f"File '{uploaded_file.name}' exceeds 50MB limit ({file_size / (1024*1024):.2f}MB). Skipping.")
+                        continue
+                    
+                    temp_file_path = os.path.join(temp_dir, uploaded_file.name)
+                    with open(temp_file_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    temp_file_paths.append(temp_file_path)
                 
-                if not extracted_documents:
-                    status.update(label="No text extracted", state="error")
+                if not temp_file_paths:
+                    status.update(label="No valid files to process", state="error")
                 else:
-                    # 3. Chunking
-                    st.write(f"Chunking {len(extracted_documents)} documents into semantic sequences...")
-                    chunked_documents = chunk_text(extracted_documents, CHUNK_SIZE, CHUNK_OVERLAP)
+                    # 2. Extract Text via PyPDFLoader
+                    st.write(f"Extracting content from {len(temp_file_paths)} PDF(s) with LangChain PyPDFLoader...")
+                    extracted_documents = load_and_extract_text_from_pdfs(temp_file_paths)
                     
-                    # 4. Building Index
-                    st.write("Building and persisting FAISS Vector Index...")
-                    os.makedirs(os.path.dirname(INDEX_PATH), exist_ok=True)
-                    vectorstore = build_and_save_faiss_index(chunked_documents, INDEX_PATH)
-                    
-                    if vectorstore:
-                        status.update(label="Document fully indexed and ready for querying!", state="complete")
+                    if not extracted_documents:
+                        status.update(label="No text extracted", state="error")
                     else:
-                        status.update(label="Failed to build index.", state="error")
+                        # 3. Chunking
+                        st.write(f"Chunking {len(extracted_documents)} documents into semantic sequences...")
+                        chunked_documents = chunk_text(extracted_documents, CHUNK_SIZE, CHUNK_OVERLAP)
+                        
+                        # 4. Building Index
+                        st.write("Building and persisting FAISS Vector Index...")
+                        os.makedirs(os.path.dirname(INDEX_PATH), exist_ok=True)
+                        vectorstore = build_and_save_faiss_index(chunked_documents, INDEX_PATH)
+                        
+                        if vectorstore:
+                            status.update(label=f"Successfully indexed {len(temp_file_paths)} document(s) and ready for querying!", state="complete")
+                        else:
+                            status.update(label="Failed to build index.", state="error")
                         
             except Exception as e:
                 status.update(label=f"Processing Request Error: {e}", state="error")
