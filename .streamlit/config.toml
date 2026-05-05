@@ -1,2 +1,9 @@
-[client]
+[server]
 maxUploadSize = 50
+
+[theme]
+primaryColor = "#6C63FF"
+backgroundColor = "#0E1117"
+secondaryBackgroundColor = "#1A1D29"
+textColor = "#E8E8ED"
+font = "sans serif"
