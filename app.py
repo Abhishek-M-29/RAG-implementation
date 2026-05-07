@@ -644,3 +644,5 @@ if prompt := st.chat_input("Ask a question about your documents..."):
             "content": response,
             "chunks": chunks_data,
         })
+        
+        st.rerun()
