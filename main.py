@@ -2,12 +2,16 @@
 
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # --- Configuration ---
 # Paths
 INDEX_PATH = "index_store/faiss_index"
 
 # Models
-LLM_MODEL_NAME = "gemini-3-flash-preview"
+LLM_MODEL_NAME = os.getenv("MODEL_NAME", "gemini-3.1-flash-lite")
 
 # Chunking parameters
 CHUNK_SIZE = 1000

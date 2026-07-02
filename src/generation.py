@@ -13,33 +13,36 @@ load_dotenv()
 _llm = None
 _current_model_name = None
 
-def _get_llm(model_name="gemini-3-flash-preview"):
+def _get_llm(model_name=None):
     global _llm, _current_model_name
+
+    if model_name is None:
+        model_name = os.getenv("MODEL_NAME", "gemini-3.1-flash-lite")
     
     if _llm is not None and _current_model_name == model_name:
         return _llm
         
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
-        print("Error: The API key is missing. Please set GEMINI_API_KEY in .env")
+        print("Error: The API key is missing. Please set GOOGLE_API_KEY in .env")
         return None
         
     try:
-        _llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.7, google_api_key=api_key)
+        _llm = ChatGoogleGenerativeAI(model=model_name, google_api_key=api_key)
         _current_model_name = model_name
         return _llm
     except Exception as e:
         print(f"Error configuring Google Generative AI: {e}")
         return None
 
-def get_rag_chain(vectorstore, top_k=5, llm_model_name="gemini-3-flash-preview", get_session_history=None):
+def get_rag_chain(vectorstore, top_k=5, llm_model_name=None, get_session_history=None):
     """
     Constructs a unified LangChain RAG pipeline using LCEL and memory.
     
     Args:
         vectorstore (FAISS): The loaded LangChain FAISS vectorstore.
         top_k (int): Number of documents to retrieve.
-        llm_model_name (str): Name of the Gemini model to use.
+        llm_model_name (str): Name of the Gemini model to use. Defaults to MODEL_NAME from .env.
         get_session_history (callable): A factory function that returns the chat history for a given session_id.
     
     Returns:

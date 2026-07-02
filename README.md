@@ -1,13 +1,12 @@
 # RAG Implementation with LangChain
 
-This project implements a Retrieval Augmented Generation (RAG) system that uses PDF documents as a knowledge base and the Gemini API (gemini-3-flash-preview) to generate formatted Markdown answers.
+This project implements a Retrieval Augmented Generation (RAG) system that uses PDF documents as a knowledge base and the Gemini API to generate formatted Markdown answers.
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-UI-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![LangChain](https://img.shields.io/badge/LangChain-LCEL-0E7C86)](https://www.langchain.com/)
 [![FAISS](https://img.shields.io/badge/FAISS-Vector%20Search-2B6CB0)](https://github.com/facebookresearch/faiss)
 
-**Focus:** PDF ingestion, semantic retrieval, and Gemini-powered answers with a Streamlit UI and CLI workflow.
+**Focus:** PDF ingestion, semantic retrieval, and Gemini-powered answers via a CLI workflow.
 
 **Highlights:** Fast local retrieval with FAISS, conversational context, and a clean UI for PDF uploads.
 
@@ -29,8 +28,8 @@ This project implements a Retrieval Augmented Generation (RAG) system that uses 
 *   **Conversational memory:** Context-aware `RunnableWithMessageHistory` for follow-up questions.
 *   **Semantic text splitters:** Configurable chunking with `RecursiveCharacterTextSplitter` to balance context and precision.
 *   **Vector embeddings:** Open-source `sentence-transformers` with a FAISS vector store.
-*   **Answer generation:** Google Gemini (`gemini-3-flash-preview`) via LangChain.
-*   **Streamlit UI:** Web UI with PDF uploads embedded in the chat workflow.
+*   **Answer generation:** Google Gemini via LangChain, configured from `MODEL_NAME` in `.env`.
+
 
 ## Project Structure
 
@@ -49,7 +48,6 @@ RAG-implementation/
 │   ├── ingestion.py
 │   ├── retrieval.py
 │   └── utils.py
-├── app.py                    # Streamlit UI
 ├── main.py                   # CLI indexing/querying
 ├── requirements.txt          # Python dependencies
 └── README.md                 # Project documentation
@@ -64,7 +62,7 @@ This section outlines the architecture, pipeline flow, and software stack used i
 The system is built primarily around the LangChain ecosystem to orchestrate the pipeline.
 
 *   **Framework:** `langchain`, `langchain-community`, and `langchain-classic` with LangChain Expression Language (LCEL).
-*   **User interface:** `streamlit` for the web UI (`app.py`) and a CLI pipeline (`main.py`).
+*   **User interface:** CLI pipeline (`main.py`).
 *   **Document ingestion:** `PyPDFLoader` for PDF parsing into `Document` objects.
 *   **Vector embeddings:** `sentence-transformers/all-MiniLM-L6-v2` via `langchain-huggingface`.
 *   **Vector database:** `faiss-cpu` for local similarity search.
@@ -79,8 +77,8 @@ The architecture is split into two distinct operational phases:
 
 This phase transforms raw PDF data into a searchable local index.
 
-1.  **PDF Loading & Extraction (`src/ingestion.py`)**
-    *   **Process:** PDF upload via the Streamlit UI or a folder path via CLI.
+    1.  **PDF Loading & Extraction (`src/ingestion.py`)**
+     *   **Process:** PDF upload via a folder path via CLI.
     *   **Library:** `PyPDFLoader` parses PDF pages into LangChain `Document` objects.
     *   **Output:** List of `Document` objects with text and metadata.
 
@@ -102,7 +100,7 @@ This phase transforms raw PDF data into a searchable local index.
 This phase takes a user prompt, retrieves relevant context, and returns the LLM response.
 
 1.  **User Inquiry Processing (`app.py` / `main.py`)**
-    *   **Process:** Query captured in the Streamlit chat input or CLI.
+     *   **Process:** Query captured via CLI.
 
 2.  **Query Embedding (`src/retrieval.py`)**
     *   **Process:** Query embedded using the same `all-MiniLM-L6-v2` model to match the index space.
@@ -177,29 +175,16 @@ graph TD
 
 ## Usage
 
-You can use the RAG system through the Streamlit web UI or the Python CLI pipeline.
+You can use the RAG system through the Python CLI pipeline.
 
 ### Quick Start
 
 ```bash
 python -m venv venv
 pip install -r requirements.txt
-streamlit run app.py
 ```
 
-### Option 1: Using the Web UI (Recommended)
-
-The easiest way to use the application is through its centrally managed Web UI.
-
-1. Run the Streamlit application:
-   ```bash
-   streamlit run app.py
-   ```
-2. Open the URL displayed in the terminal (usually `http://localhost:8501`).
-3. Upload PDFs using the **Document Management** expander.
-4. Ask questions in the chat once indexing completes.
-
-### Option 2: Using the Command Line Interface (CLI)
+### Using the Command Line Interface (CLI)
 
 The `main.py` script provides a fallback/headless command-line interface.
 
@@ -223,13 +208,13 @@ Once your documents have been successfully indexed:
 
 ## Configuration Parameters
 
-Both `main.py` and `app.py` support these primary configuration parameters:
+`main.py` supports these primary configuration parameters:
 
 *   `INDEX_PATH`: Default destination for FAISS (`index_store/faiss_index.idx`).
 *   `CHUNK_SIZE = 1000`: Chunk length in characters.
 *   `CHUNK_OVERLAP = 100`: Overlap between consecutive chunks.
 *   `TOP_K_RESULTS = 5`: Number of retrieved chunks used for generation.
-*   `LLM_MODEL_NAME = "gemini-3-flash-preview"`: Gemini model name.
+*   `MODEL_NAME = "gemini-3.1-flash-lite"`: Gemini model name loaded from `.env`.
 
 ## To Do / Potential Improvements
 
