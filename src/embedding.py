@@ -1,55 +1,85 @@
 # src/embedding.py
 
+import os
+import shutil
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
-import os
 
 _embedding_model = None
 
 def _get_embedding_model(model_name="sentence-transformers/all-MiniLM-L6-v2"):
     global _embedding_model
     if _embedding_model is None:
-        # print(f"Loading embedding model: {model_name}...")
         _embedding_model = HuggingFaceEmbeddings(model_name=model_name)
-        # print("Embedding model loaded successfully.")
     return _embedding_model
 
 def build_and_save_faiss_index(documents, index_path="index_store/faiss_index"):
     """
     Builds a FAISS vector store from LangChain Documents and saves it.
-    This overwrites the existing index as requested (destructive indexing).
+    Overwrites any existing index.
     """
     if not documents:
-        # print("No documents provided to build FAISS index.")
         return None
     try:
         model = _get_embedding_model()
-        # print(f"Building FAISS index with {len(documents)} documents...")
         vectorstore = FAISS.from_documents(documents, model)
-        
-        # Save the vector store directly (this saves index and document store)
-        # Note: We save to a directory, not a .idx file directly.
         os.makedirs(os.path.dirname(index_path), exist_ok=True)
         vectorstore.save_local(index_path)
-        # print(f"FAISS index and document store saved to {index_path}")
         return vectorstore
     except Exception as e:
-        # print(f"Error building or saving FAISS index: {e}")
+        print(f"Error building FAISS index: {e}")
         return None
+
+def add_to_faiss_index(documents, index_path="index_store/faiss_index"):
+    """
+    Adds documents to an existing FAISS index.
+    If no index exists, creates a new one.
+    """
+    if not documents:
+        return None
+    existing = load_faiss_index(index_path)
+    if existing is None:
+        return build_and_save_faiss_index(documents, index_path)
+    try:
+        existing.add_documents(documents)
+        existing.save_local(index_path)
+        return existing
+    except Exception as e:
+        print(f"Error during add_documents: {e}")
+        print("Falling back to merge approach...")
+        try:
+            all_docs = []
+            for doc_id in existing.index_to_docstore_id.values():
+                doc = existing.docstore.search(doc_id)
+                if doc is not None:
+                    all_docs.append(doc)
+            all_docs.extend(documents)
+            print(f"Merging {len(all_docs)} total documents into new index...")
+            return build_and_save_faiss_index(all_docs, index_path)
+        except Exception as e2:
+            print(f"Merge also failed: {e2}")
+            return None
 
 def load_faiss_index(index_path="index_store/faiss_index"):
     """
     Loads a FAISS vector store from disk.
     """
     if not os.path.exists(index_path):
-        # print(f"FAISS index directory not found at {index_path}")
         return None
     try:
-        # print(f"Loading FAISS index from {index_path}...")
         model = _get_embedding_model()
         vectorstore = FAISS.load_local(index_path, model, allow_dangerous_deserialization=True)
-        # print("FAISS index loaded successfully.")
         return vectorstore
     except Exception as e:
-        # print(f"Error loading FAISS index: {e}")
+        print(f"Error loading FAISS index: {e}")
         return None
+
+def clear_faiss_index(index_path="index_store/faiss_index"):
+    """
+    Removes the FAISS index directory from disk.
+    """
+    if os.path.exists(index_path):
+        shutil.rmtree(index_path)
+        print(f"Index cleared from {index_path}")
+    else:
+        print(f"No index found at {index_path}")
