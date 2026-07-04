@@ -2,8 +2,11 @@ import argparse
 import os
 import sys
 from dotenv import load_dotenv
+from src.log_utils import get_logger
 
 load_dotenv()
+
+logger = get_logger("rag")
 
 INDEX_PATH = "index_store/faiss_index"
 LLM_MODEL_NAME = os.getenv("MODEL_NAME", "gemini-3.1-flash-lite")
@@ -149,10 +152,13 @@ def run_query(top_k):
         print("Failed to load FAISS index. Please run the indexing pipeline first.")
         return
 
-    cli_history = ChatMessageHistory()
+    session_store = {}
 
     def get_session_history(session_id: str):
-        return cli_history
+        if session_id not in session_store:
+            logger.info("Creating new chat history for session: %s", session_id)
+            session_store[session_id] = ChatMessageHistory()
+        return session_store[session_id]
 
     try:
         rag_chain = get_rag_chain(
