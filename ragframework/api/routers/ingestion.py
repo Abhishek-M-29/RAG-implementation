@@ -79,9 +79,8 @@ def upload_document(
 
     if settings.async_ingestion:
         import redis
-
-        from ragframework.workers.ingestion_worker import process_ingestion_job
         from rq import Queue
+        from ragframework.workers.ingestion_worker import process_ingestion_job
 
         assert settings.redis_url is not None
         redis_client = redis.from_url(
