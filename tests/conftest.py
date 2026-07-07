@@ -2,6 +2,9 @@ import pytest
 import os
 import shutil
 import tempfile
+
+os.environ["INGESTION_RATE_LIMIT"] = "10000/minute"
+os.environ["QUERY_RATE_LIMIT"] = "10000/minute"
 from pathlib import Path
 from fpdf import FPDF
 from langchain_core.documents import Document
@@ -97,6 +100,12 @@ class MockVectorStore:
             ids.append(doc_id)
         return ids
 
+    def add_embedded_documents(self, text_vector_pairs, metadatas):
+        for (text, _vec), meta in zip(text_vector_pairs, metadatas):
+            doc_id = meta.get("id", str(id((text, meta))))
+            self._docs[doc_id] = Document(page_content=text, metadata=meta)
+        return [m.get("id") for m in metadatas]
+
     def similarity_search(self, query, k=5):
         return list(self._docs.values())[:k]
 
@@ -160,3 +169,10 @@ def mock_connectors(monkeypatch):
     monkeypatch.setattr(ragframework.api.routers.health, "get_llm", lambda s: mock_llm)
 
     return mock_vs, mock_llm
+
+
+@pytest.fixture(autouse=True)
+def _clear_settings_cache():
+    from ragframework.config import get_settings
+    get_settings.cache_clear()
+    yield

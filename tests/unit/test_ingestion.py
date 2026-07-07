@@ -124,7 +124,7 @@ class TestEmbedAndIndexChunks:
             Document(page_content="Foo bar", metadata={"source": "doc.pdf"}),
         ]
         embed_and_index_chunks(chunks, MagicMock(), mock_cache, mock_vector_store, "doc.pdf")
-        assert mock_vector_store.add_documents.called
+        assert mock_vector_store.add_embedded_documents.called
 
     def test_all_chunks_cached_skips_indexing(self, mock_cache, mock_vector_store):
         mock_cache.get.return_value = "1"
