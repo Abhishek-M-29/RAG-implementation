@@ -61,7 +61,7 @@ def main():
                 "REDIS_URL must be set to run the async ingestion worker. "
                 "Set it in your .env or configure it via environment variables."
             )
-        from rq import Connection, Worker
+        from rq import Worker
         import redis as redis_module
         redis_conn = redis_module.from_url(
             settings.redis_url,
@@ -69,9 +69,8 @@ def main():
             socket_timeout=settings.object_storage_timeout_seconds,
         )
         queues = [q.strip() for q in args.queues.split(",")]
-        with Connection(redis_conn):
-            worker = Worker(queues)
-            worker.work()
+        worker = Worker(queues, connection=redis_conn)
+        worker.work()
         return
     actions = {
         "index": "Indexing not yet implemented — built out in Stage 2+.",

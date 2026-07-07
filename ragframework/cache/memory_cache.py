@@ -18,7 +18,7 @@ class MemoryCache(BaseCache):
             del self._cache[key]
             del self._ttls[key]
             return None
-        return self._cache[key]
+        return self._cache[key]  # type: ignore[return-value]
 
     def set(self, key: str, value: str, ttl_seconds: int | None = None) -> None:
         self._cache[key] = value

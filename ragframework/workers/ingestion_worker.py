@@ -63,6 +63,7 @@ def process_ingestion_job(file_path: str, source_filename: str, request_id: str 
             chunks, settings, cache, vector_store, source_filename=source_filename,
         )
 
+        assert settings.redis_url is not None
         redis_client = redis.from_url(
             settings.redis_url,
             socket_connect_timeout=settings.object_storage_timeout_seconds,

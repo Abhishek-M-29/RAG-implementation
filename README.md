@@ -74,6 +74,7 @@ directory. The `Settings` model is defined in `ragframework/config.py`.
 | `LLM_PROVIDER` | `google_genai` | LLM provider (`google_genai` only in this release) |
 | `LLM_CONFIG__API_KEY` | — | **Required.** Your Google Gemini API key |
 | `LLM_CONFIG__MODEL` | `gemini-3.1-flash-lite` | Gemini model name |
+| `LLM_CONFIG__TIMEOUT` | — | Per-provider timeout override (overrides `LLM_TIMEOUT_SECONDS`) |
 | `LLM_TIMEOUT_SECONDS` | `30.0` | Timeout for LLM calls |
 
 ### Chunking & retrieval
@@ -107,7 +108,7 @@ directory. The `Settings` model is defined in `ragframework/config.py`.
 
 | Variable | Default | Description |
 |---|---|---|
-| `ASYNC_INGESTION` | `true` | Enable async ingestion via RQ (requires Redis) |
+| `ASYNC_INGESTION` | `false` | Enable async ingestion via RQ (requires Redis) |
 | `OBJECT_STORAGE_PATH` | `uploads/` | Directory for uploaded files |
 | `OBJECT_STORAGE_TIMEOUT_SECONDS` | `30.0` | Timeout for file operations |
 | `MAX_UPLOAD_SIZE_BYTES` | `50000000` | Maximum upload file size (50 MB) |

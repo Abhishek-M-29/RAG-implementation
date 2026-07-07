@@ -2,7 +2,7 @@ import contextvars
 import logging
 import sys
 
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger import json
 
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
     "request_id", default="-"
@@ -18,7 +18,7 @@ class RequestIDFilter(logging.Filter):
 def configure_logging(level: str = "INFO") -> None:
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(
-        jsonlogger.JsonFormatter(
+        json.JsonFormatter(
             "%(asctime)s %(name)s %(levelname)s %(message)s %(request_id)s"
         )
     )

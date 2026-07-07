@@ -37,7 +37,7 @@ class DocumentListResponse(BaseModel):
 
 class JobStatusResponse(BaseModel):
     job_id: str
-    status: Literal["queued", "processing", "done", "failed"]
+    status: str
     error: str | None = None
 
 

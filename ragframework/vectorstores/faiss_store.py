@@ -72,7 +72,7 @@ class FaissStore(BaseVectorStore):
             return
 
         id_set = set(ids)
-        existing = list(self._store.docstore._dict.values())
+        existing = list(self._store.docstore._dict.values())  # type: ignore[attr-defined]
         remaining = [d for d in existing if d.metadata.get("id") not in id_set]
 
         if len(remaining) == len(existing):

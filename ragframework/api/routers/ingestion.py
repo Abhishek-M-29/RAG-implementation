@@ -1,7 +1,6 @@
 import logging
 import os
 import uuid
-
 import redis
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 
@@ -82,6 +81,7 @@ def upload_document(
         from rq import Queue
         from ragframework.workers.ingestion_worker import process_ingestion_job
 
+        assert settings.redis_url is not None
         redis_client = redis.from_url(
             settings.redis_url,
             socket_connect_timeout=settings.object_storage_timeout_seconds,
@@ -170,6 +170,7 @@ def get_job_status(
 
     from rq.job import Job
 
+    assert settings.redis_url is not None
     redis_client = redis.from_url(
         settings.redis_url,
         socket_connect_timeout=settings.object_storage_timeout_seconds,
@@ -182,7 +183,7 @@ def get_job_status(
     finally:
         redis_client.connection_pool.disconnect()
 
-    status_map = {
+    status_map: dict[str, str] = {
         "queued": "queued",
         "started": "processing",
         "deferred": "queued",
@@ -190,7 +191,7 @@ def get_job_status(
         "failed": "failed",
         "scheduled": "queued",
     }
-    status = status_map.get(job.get_status(), "queued")
+    status: str = status_map.get(job.get_status(), "queued")
     error = None
     if status == "failed":
         error = str(job.exc_info) if job.exc_info else "Unknown error"

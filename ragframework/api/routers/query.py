@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import time
+from collections.abc import Iterator
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -98,7 +99,7 @@ def _check_token_budget(
     )
 
 
-def _cached_stream(data: dict) -> str:
+def _cached_stream(data: dict) -> Iterator[str]:
     yield _sse_token(data.get("answer", ""))
     yield _sse_metadata(data.get("sources", []), cached=True)
 
@@ -113,7 +114,7 @@ def _generation_stream(
     sources: list[dict],
     settings: Settings,
     llm,
-) -> str:
+) -> Iterator[str]:
     """Yield SSE events while streaming from the LLM chain, then cache."""
     answer_parts = []
     t0 = time.monotonic()

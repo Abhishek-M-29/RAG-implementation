@@ -42,6 +42,7 @@ def setup_metrics(
 
     metrics.set_meter_provider(provider)
     _meter = metrics.get_meter(service_name)
+    assert _meter is not None
 
     _request_counter = _meter.create_counter(
         "rag.request.total",
