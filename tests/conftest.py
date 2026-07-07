@@ -22,8 +22,11 @@ def temp_dir():
 def make_pdf(path: Path, text: str):
     pdf = FPDF()
     pdf.add_page()
-    pdf.add_font("Noto", "", "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf")
-    pdf.set_font("Noto", size=12)
+    try:
+        pdf.add_font("Noto", "", "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf")
+        pdf.set_font("Noto", size=12)
+    except Exception:
+        pdf.set_font("Helvetica", size=12)
     pdf.multi_cell(w=0, text=text)
     pdf.output(str(path))
     return path
