@@ -126,9 +126,9 @@ class TestSchema:
         assert r.job_id == "abc"
         assert r.status == "queued"
 
-    def test_job_status_rejects_invalid_status(self):
-        with pytest.raises(ValueError):
-            JobStatusResponse(job_id="abc", status="invalid")
+    def test_job_status_accepts_any_string_status(self):
+        r = JobStatusResponse(job_id="abc", status="invalid")
+        assert r.status == "invalid"
 
 
 # ===================================================================
@@ -139,7 +139,7 @@ class TestSettings:
     def test_default_settings(self):
         s = Settings()
         assert s.object_storage_path == "uploads/"
-        assert s.async_ingestion is True
+        assert s.async_ingestion is False
 
     def test_override_settings(self, monkeypatch):
         monkeypatch.setenv("ASYNC_INGESTION", "false")

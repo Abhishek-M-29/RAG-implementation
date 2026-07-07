@@ -66,6 +66,7 @@ class TestValidateConfig:
 
     def test_missing_redis_for_async_raises(self, monkeypatch):
         monkeypatch.setenv("ASYNC_INGESTION", "true")
+        monkeypatch.setenv("LLM_CONFIG__API_KEY", "sk-key")
         monkeypatch.delenv("REDIS_URL", raising=False)
         s = Settings()
         with pytest.raises(ValueError, match="REDIS_URL"):
@@ -73,12 +74,14 @@ class TestValidateConfig:
 
     def test_async_with_redis_passes(self, monkeypatch):
         monkeypatch.setenv("ASYNC_INGESTION", "true")
+        monkeypatch.setenv("LLM_CONFIG__API_KEY", "sk-key")
         monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
         s = Settings()
         validate_config(s)
 
     def test_missing_redis_for_cache_passes_when_memory(self, monkeypatch):
         monkeypatch.setenv("ASYNC_INGESTION", "false")
+        monkeypatch.setenv("LLM_CONFIG__API_KEY", "sk-key")
         monkeypatch.setenv("CACHE_BACKEND", "memory")
         monkeypatch.delenv("REDIS_URL", raising=False)
         s = Settings()
@@ -86,6 +89,7 @@ class TestValidateConfig:
 
     def test_missing_redis_for_cache_raises_when_redis(self, monkeypatch):
         monkeypatch.setenv("ASYNC_INGESTION", "false")
+        monkeypatch.setenv("LLM_CONFIG__API_KEY", "sk-key")
         monkeypatch.setenv("CACHE_BACKEND", "redis")
         monkeypatch.delenv("REDIS_URL", raising=False)
         s = Settings()
@@ -94,6 +98,7 @@ class TestValidateConfig:
 
     def test_missing_redis_for_memory_raises_when_redis(self, monkeypatch):
         monkeypatch.setenv("ASYNC_INGESTION", "false")
+        monkeypatch.setenv("LLM_CONFIG__API_KEY", "sk-key")
         monkeypatch.setenv("MEMORY_BACKEND", "redis")
         monkeypatch.delenv("REDIS_URL", raising=False)
         s = Settings()

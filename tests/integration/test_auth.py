@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 
 def _make_app(monkeypatch, tmp_path):
+    monkeypatch.setenv("LLM_CONFIG__API_KEY", "sk-test-key")
     monkeypatch.setenv("ASYNC_INGESTION", "false")
     monkeypatch.setenv("AUTH_ENABLED", "true")
     monkeypatch.setenv("API_KEYS", json.dumps({
