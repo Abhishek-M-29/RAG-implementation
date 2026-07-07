@@ -15,6 +15,24 @@ def _make_app(monkeypatch, tmp_path):
     }))
     monkeypatch.setenv("CACHE_BACKEND", "memory")
     monkeypatch.setenv("MEMORY_BACKEND", "memory")
+
+    import ragframework.api.routers.query
+    import ragframework.api.routers.ingestion
+    import ragframework.api.routers.health
+
+    from tests.conftest import MockVectorStore, MockChatModel, MockChain
+
+    mock_vs = MockVectorStore()
+    mock_llm = MockChatModel()
+    mock_chain = MockChain()
+
+    monkeypatch.setattr(ragframework.api.routers.query, "get_vector_store", lambda s: mock_vs)
+    monkeypatch.setattr(ragframework.api.routers.query, "get_llm", lambda s: mock_llm)
+    monkeypatch.setattr(ragframework.api.routers.query, "build_rag_chain", lambda *a, **kw: mock_chain)
+    monkeypatch.setattr(ragframework.api.routers.ingestion, "get_vector_store", lambda s: mock_vs)
+    monkeypatch.setattr(ragframework.api.routers.health, "get_vector_store", lambda s: mock_vs)
+    monkeypatch.setattr(ragframework.api.routers.health, "get_llm", lambda s: mock_llm)
+
     from ragframework.api.main import create_app
     return TestClient(create_app())
 
