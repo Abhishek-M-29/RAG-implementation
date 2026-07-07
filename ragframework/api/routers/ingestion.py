@@ -80,9 +80,8 @@ def upload_document(
     if settings.async_ingestion:
         import redis
 
-        from rq import Queue
-
         from ragframework.workers.ingestion_worker import process_ingestion_job
+        from rq import Queue
 
         assert settings.redis_url is not None
         redis_client = redis.from_url(
@@ -191,7 +190,6 @@ def get_job_status(
         return JobStatusResponse(job_id=job_id, status="done")
 
     import redis
-
     from rq.job import Job
 
     assert settings.redis_url is not None

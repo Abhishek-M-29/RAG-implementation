@@ -131,7 +131,7 @@ class FaissStore(BaseVectorStore):
         if self._store is None:
             return {}
         counts: dict[str, int] = {}
-        for doc in self._store.docstore._dict.values():
+        for doc in self._store.docstore._dict.values():  # type: ignore[attr-defined]
             source = doc.metadata.get("source", "unknown")
             counts[source] = counts.get(source, 0) + 1
         return counts
