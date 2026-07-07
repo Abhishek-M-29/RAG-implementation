@@ -6,3 +6,7 @@ __pycache__/
 index_store/
 data/
 /test_*.py
+dist/
+*.egg-info/
+build/
+uploads/

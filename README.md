@@ -1,290 +1,268 @@
 <div align="center">
 
-# RAG CLI
+# RAG Framework
 
-**Local Retrieval-Augmented Generation over PDFs using LangChain & Gemini**
+**Bring-your-own-vector-store, bring-your-own-LLM — RAG orchestration you deploy yourself.**
 
-[![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?style=flat-square&logo=python)](https://www.python.org)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python)](https://www.python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 [![LangChain](https://img.shields.io/badge/LangChain-0.3-0E7C86?style=flat-square)](https://www.langchain.com)
-[![Google Gemini](https://img.shields.io/badge/Gemini-API-4285F4?style=flat-square&logo=google)](https://ai.google.dev)
-[![FAISS](https://img.shields.io/badge/FAISS-Vector%20Search-2B6CB0?style=flat-square)](https://github.com/facebookresearch/faiss)
+[![FAISS](https://img.shields.io/badge/FAISS-Vector%20Store-2B6CB0?style=flat-square)](https://github.com/facebookresearch/faiss)
+[![Gemini](https://img.shields.io/badge/Gemini-LLM-4285F4?style=flat-square&logo=google)](https://ai.google.dev)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](http://makeapullrequest.com)
 
-[Features](#features) • [Quick start](#quick-start) • [Usage](#usage) • [Project structure](#project-structure) • [Architecture](#architecture) • [Configuration](#configuration) • [Development](#development) • [FAQ](#faq)
+[Quickstart](#quickstart) • [Configuration](#configuration) • [API](#api) • [Docker](#docker) • [Connectors](#adding-a-connector) • [Contributing](CONTRIBUTING.md)
 
 </div>
 
-A command-line RAG system that lets you index PDF documents locally and ask questions in natural language. It uses **sentence-transformers** for embeddings, **FAISS** for vector search, and **Google Gemini** for answer generation. Conversation history is preserved within each session for follow-up questions.
+RAG Framework is a **distributable RAG orchestration framework** you run on your own infrastructure — never a hosted service. It supplies:
 
-> [!NOTE]
-> This project runs entirely on your machine — no cloud infrastructure required. Embeddings use the local `all-MiniLM-L6-v2` model, and the FAISS index is stored on disk.
+- Pluggable contracts for vector stores and LLM providers
+- Two shipped connectors: **FAISS** (local on-disk) + **Google Gemini**
+- A FastAPI backend with query (SSE streaming), document ingestion, health probes
+- Configurable caching, session memory, auth, rate limiting
+- Async ingestion pipeline (RQ + Redis)
+- OpenTelemetry observability (metrics, tracing, structured logging)
+- A reference React frontend
+- Containerized deployment (Docker + docker-compose)
 
-## Features
+## Quickstart
 
-- **PDF ingestion** — Load and extract text from PDF files using `PyPDFLoader`
-- **Semantic chunking** — `RecursiveCharacterTextSplitter` with configurable size and overlap
-- **Local vector search** — `sentence-transformers` + FAISS for fast similarity retrieval
-- **LLM-powered answers** — Google Gemini generates answers from retrieved context
-- **Conversational memory** — Multi-turn chat with `RunnableWithMessageHistory`
-- **Flexible indexing** — Index from directories, specific files, or both; append to existing index
-- **Index management** — Clear, reindex, and inspect your knowledge base via CLI
-- **Interactive and scriptable** — Run interactively or use CLI flags for automation
-- **Test suite** — 30 pytest tests covering CLI parsing and the full pipeline
-
-## Quick start
+Three steps to a running instance:
 
 ```bash
-# Clone and enter the project
-git clone <repo-url>
+pip install ragframework
+```
+
+Copy and fill in your configuration:
+
+```bash
+# Create .env from the template
+cp .env.example .env
+# Edit .env — set at minimum LLM_CONFIG__API_KEY=your-gemini-key
+```
+
+Start the server:
+
+```bash
+ragframework serve
+```
+
+The API is now running at `http://localhost:8000`. Try it:
+
+```bash
+curl http://localhost:8000/v1/health
+```
+
+> **No Docker? No problem.** The pip path runs everything locally with the
+> in-memory cache and synchronous ingestion. If you need Redis-backed caching,
+> session memory, or async ingestion, see the [Docker](#docker) section.
+
+## Configuration
+
+All configuration is via environment variables or a `.env` file in the working
+directory. The `Settings` model is defined in `ragframework/config.py`.
+
+### Connector selection
+
+| Variable | Default | Description |
+|---|---|---|
+| `VECTOR_STORE` | `faiss` | Vector store backend (`faiss` only in this release) |
+| `VECTOR_STORE_CONFIG__INDEX_PATH` | `index_store/faiss_index` | FAISS index on-disk path |
+| `VECTOR_STORE_CONFIG__MODEL_NAME` | `sentence-transformers/all-MiniLM-L6-v2` | Embedding model for FAISS |
+| `VECTOR_STORE_TIMEOUT_SECONDS` | `30.0` | Timeout for vector store operations |
+| `LLM_PROVIDER` | `google_genai` | LLM provider (`google_genai` only in this release) |
+| `LLM_CONFIG__API_KEY` | — | **Required.** Your Google Gemini API key |
+| `LLM_CONFIG__MODEL` | `gemini-3.1-flash-lite` | Gemini model name |
+| `LLM_TIMEOUT_SECONDS` | `30.0` | Timeout for LLM calls |
+
+### Chunking & retrieval
+
+| Variable | Default | Description |
+|---|---|---|
+| `CHUNK_SIZE` | `1000` | Characters per chunk |
+| `CHUNK_OVERLAP` | `100` | Overlap between chunks |
+| `TOP_K` | `5` | Documents retrieved per query |
+| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Embedding model for vector search |
+
+### Caching & memory
+
+| Variable | Default | Description |
+|---|---|---|
+| `CACHE_BACKEND` | `memory` | Query cache backend (`memory` or `redis`) |
+| `QUERY_CACHE_TTL` | `3600` | Query cache TTL in seconds |
+| `MEMORY_BACKEND` | `memory` | Session memory backend (`memory` or `redis`) |
+| `REDIS_URL` | — | Redis connection URL (required when using `redis` backends or async ingestion) |
+
+### Auth & rate limiting
+
+| Variable | Default | Description |
+|---|---|---|
+| `AUTH_ENABLED` | `false` | Enable API-key authentication |
+| `API_KEYS` | `{}` | JSON dict mapping API keys to scope lists: `{"sk-abc":["query"],"sk-xyz":["ingest"]}` |
+| `QUERY_RATE_LIMIT` | `60/minute` | Rate limit for query endpoint |
+| `INGESTION_RATE_LIMIT` | `10/minute` | Rate limit for ingestion endpoint |
+
+### Ingestion
+
+| Variable | Default | Description |
+|---|---|---|
+| `ASYNC_INGESTION` | `true` | Enable async ingestion via RQ (requires Redis) |
+| `OBJECT_STORAGE_PATH` | `uploads/` | Directory for uploaded files |
+| `OBJECT_STORAGE_TIMEOUT_SECONDS` | `30.0` | Timeout for file operations |
+| `MAX_UPLOAD_SIZE_BYTES` | `50000000` | Maximum upload file size (50 MB) |
+
+### Observability
+
+| Variable | Default | Description |
+|---|---|---|
+| `LOG_LEVEL` | `INFO` | Logging level |
+| `LOG_RAW_QUERIES` | `false` | Log full query text |
+| `OTEL_EXPORTER_ENDPOINT` | — | OpenTelemetry OTLP gRPC endpoint (optional) |
+| `RAG_TRACING_PROVIDER` | `none` | LangChain tracing provider (`none`, `langsmith`, `langfuse`) |
+
+### CORS
+
+| Variable | Default | Description |
+|---|---|---|
+| `CORS_ALLOWED_ORIGINS` | `[]` | JSON list of allowed CORS origins, e.g. `["http://localhost:3000"]` |
+
+### LLM generation
+
+| Variable | Default | Description |
+|---|---|---|
+| `MAX_TOKENS_PER_REQUEST` | `4000` | Estimated token budget guard |
+
+## API
+
+All endpoints are served from `http://localhost:8000`.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/health` | Liveness probe — always returns `{"status": "ok"}` |
+| `GET` | `/v1/ready` | Readiness probe — tests vector store + LLM connectivity |
+| `GET` | `/v1/config` | Returns active `vector_store`, `llm_provider`, `auth_enabled` |
+| `POST` | `/v1/query` | RAG query — accepts `{"query": "...", "top_k": 5, "session_id": "..."}`, returns SSE stream |
+| `POST` | `/v1/documents` | Upload a PDF for ingestion (multipart form) |
+| `GET` | `/v1/documents` | List ingested documents |
+| `GET` | `/v1/documents/{job_id}` | Poll async ingestion job status |
+| `DELETE` | `/v1/documents/{id}` | Delete a document from the index |
+
+### Query response format
+
+The query endpoint streams [Server-Sent Events](https://html.spec.whatwg.org/multipage/server-sent-events.html):
+
+```
+data: {"type": "token", "content": "The answer begins..."}
+data: {"type": "token", "content": " and continues."}
+data: {"type": "metadata", "sources": [...], "cached": false}
+```
+
+## Docker
+
+For the full stack (API + ingestion worker + Redis + frontend):
+
+```bash
+git clone https://github.com/Abhishek-M-29/RAG-implementation.git
 cd RAG-implementation
-
-# Create and activate a virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Set your Gemini API key
-echo 'GEMINI_API_KEY="your-key-here"' > .env
+cp .env.example .env
+# Edit .env
+docker compose -f docker/docker-compose.yml up
 ```
 
-Place PDF files in a directory (e.g., `./data`), then:
+This starts:
+- **Redis** — job queue + cache/memory backend
+- **API** — FastAPI on `:8000`
+- **Worker** — RQ ingestion worker
+- **Frontend** — React SPA on `:3000`
 
-```bash
-# Index documents from a directory
-python3 main.py index -d ./data
+## Per-connector guides
 
-# Or index from the interactive menu
-python3 main.py
-```
+- [FAISS + Google Gemini](docs/connectors/faiss-gemini.md) — the shipped default
 
-Once indexed, start querying:
+Each connector guide follows a reusable template so a future "pgvector + OpenAI"
+page can slot in without restructuring the docs.
 
-```bash
-python3 main.py query
-```
+## Adding a connector
 
-## Usage
+This framework ships with **FAISS** (vector store) and **Google Gemini** (LLM).
+Adding a new backend requires writing exactly one class and registering it:
 
-### CLI commands
+1. Implement `BaseVectorStore` or `BaseLLMProvider` in a new module
+2. Register it in the corresponding registry (`vectorstores/registry.py` or `llms/registry.py`)
+3. Add vendor dependencies as an extras group in `pyproject.toml`
 
-```
-python3 main.py <command> [options]
-```
-
-| Command | Description |
-|---|---|
-| `index` | Index PDFs into the knowledge base |
-| `query` | Enter interactive Q&A session |
-| `clear` | Delete the FAISS index |
-| `reindex` | Clear the index and rebuild from scratch |
-| `info` | Show index statistics (vector count, file sizes) |
-
-Run without a command to enter interactive mode:
-
-```
-python3 main.py
-```
-
-### Indexing documents
-
-```bash
-# Index all PDFs from one or more directories
-python3 main.py index -d ./docs -d ./reports
-
-# Index specific files
-python3 main.py index -f doc1.pdf -f doc2.pdf
-
-# Mix directories and files
-python3 main.py index -d ./docs -f ./cover.pdf
-
-# Append to existing index instead of overwriting
-python3 main.py index -d ./new-docs -a
-
-# Custom chunk parameters
-python3 main.py index -d ./docs --chunk-size 800 --chunk-overlap 50
-```
-
-### Querying
-
-```bash
-# Default (top-k=5)
-python3 main.py query
-
-# Custom retrieval count
-python3 main.py query --top-k 10
-```
-
-Type your questions at the prompt. The conversation history is kept for the session — type `exit` to quit.
-
-### Index management
-
-```bash
-# Show index info
-python3 main.py info
-# Index location: /home/.../index_store/faiss_index
-# Number of vectors: 142
-# Index file size: 42.5 KB
-# Document store size: 18.2 KB
-# Total size: 60.7 KB
-
-# Clear the index
-python3 main.py clear
-
-# Clear and rebuild from the same source
-python3 main.py reindex -d ./docs
-```
-
-## Project structure
-
-```
-RAG-implementation/
-├── main.py                 # CLI entry point with argparse subcommands
-├── requirements.txt        # Python dependencies
-├── .env                    # API key (not committed)
-├── src/
-│   ├── ingestion.py        # PDF loading with PyPDFLoader
-│   ├── chunking.py         # RecursiveCharacterTextSplitter
-│   ├── embedding.py        # FAISS index build / load / append / clear
-│   ├── generation.py       # RAG chain with Gemini LLM
-│   ├── retrieval.py        # Similarity search helper
-│   └── utils.py            # JSON save/load utilities
-├── tests/
-│   ├── conftest.py         # Shared fixtures (temp dirs, sample PDFs)
-│   ├── test_cli.py         # CLI argument parsing tests (13 tests)
-│   └── test_pipeline.py    # Pipeline integration tests (17 tests)
-└── index_store/
-    └── faiss_index/        # FAISS vector index (index.faiss + index.pkl)
-```
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full walkthrough.
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    subgraph Indexing["Phase 1: Indexing"]
-        direction TB
-        PDF[PDF files] --> ING[src/ingestion.py]
-        ING -- "PyPDFLoader extracts text per page" --> CHUNK[src/chunking.py]
-        CHUNK -- "RecursiveCharacterTextSplitter<br/>(1000 chars, 100 overlap)" --> EMB[src/embedding.py]
-        EMB -- "sentence-transformers/all-MiniLM-L6-v2<br/>→ FAISS on disk" --> INDEX[(index_store/faiss_index/)]
-    end
-
-    subgraph Query["Phase 2: Retrieval & Generation"]
-        direction TB
-        Q[User query] --> LOAD[src/embedding.py]
-        LOAD -- "Load FAISS index, embed query" --> RET[src/retrieval.py]
-        RET -- "similarity_search (top-k=5)" --> GEN[src/generation.py]
-        GEN -- "create_stuff_documents_chain<br/>+ RunnableWithMessageHistory<br/>+ Gemini LLM" --> ANS[Answer with context]
-    end
-
-    INDEX -.-> LOAD
 ```
-
-### Dataflow
-
-```mermaid
-flowchart LR
-    USER([User])
-    GEMINI[[Gemini API]]
-
-    subgraph Load["Data Loading"]
-        PDF[PDF files] --> EX[Extract text]
-        EX --> CH[Split into chunks]
-    end
-
-    subgraph Index["Indexing"]
-        CH --> EMB[Generate embeddings]
-        EMB --> STORE[(FAISS index)]
-    end
-
-    subgraph Retrieve["Retrieval"]
-        Q[User query] --> QEMB[Embed query]
-        QEMB --> SEARCH[Similarity search]
-        STORE --> SEARCH
-    end
-
-    subgraph Generate["Generation"]
-        SEARCH --> PROMPT[Build prompt with context]
-        PROMPT --> GEMINI
-        GEMINI --> RESULT[Generate answer]
-    end
-
-    USER --> PDF
-    USER --> Q
-    RESULT --> USER
-
-    style USER fill:#e1f5fe,stroke:#0288d1
-    style GEMINI fill:#f3e5f5,stroke:#7b1fa2
-    style STORE fill:#fff3e0,stroke:#f57c00
+┌────────────────────────────────────────────────────────────────┐
+│                       FastAPI (uvicorn)                        │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
+│  │  Query   │  │Ingestion │  │  Health  │  │    Config     │  │
+│  │ (SSE)    │  │ (PDF)    │  │ /ready   │  │  introspection│  │
+│  └────┬─────┘  └────┬─────┘  └──────────┘  └───────────────┘  │
+│       │              │                                          │
+├───────┴──────────────┴──────────────────────────────────────────┤
+│                      Core Layer                                 │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
+│  │  Cache   │  │  Memory  │  │  RAG     │  │  Token budget │  │
+│  │ (mem/redis)│ (mem/redis)│  │  chain   │  │  guard        │  │
+│  └──────────┘  └──────────┘  └──────────┘  └───────────────┘  │
+├────────────────────────────────────────────────────────────────┤
+│                 Connector Layer (pluggable)                     │
+│  ┌─────────────────────┐  ┌──────────────────────────────┐     │
+│  │  BaseVectorStore    │  │     BaseLLMProvider           │     │
+│  │  ├─ FAISS (shipped) │  │     ├─ Google Gemini (shipped)│     │
+│  │  └─ pgvector (next) │  │     └─ OpenAI (next)          │     │
+│  └─────────────────────┘  └──────────────────────────────┘     │
+├────────────────────────────────────────────────────────────────┤
+│                    Infrastructure                               │
+│  ┌──────────┐  ┌──────────┐  ┌──────────────────────────┐     │
+│  │  Redis   │  │  RQ      │  │  OpenTelemetry            │     │
+│  │ (cache/  │  │ (async   │  │  (metrics/tracing/logs)   │     │
+│  │  memory) │  │  ingest) │  │                           │     │
+│  └──────────┘  └──────────┘  └──────────────────────────┘     │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ### Stack
 
 | Component | Technology |
 |---|---|
-| Framework | LangChain (LCEL) |
+| Framework | Python 3.10+, LangChain 0.3 |
+| API server | FastAPI + uvicorn |
+| Vector store | FAISS (shipped); extendable via `BaseVectorStore` |
+| LLM | Google Gemini (shipped); extendable via `BaseLLMProvider` |
 | Embeddings | `sentence-transformers/all-MiniLM-L6-v2` |
-| Vector store | FAISS (local, on-disk) |
-| LLM | Google Gemini (via `langchain-google-genai`) |
-| Document loader | PyPDFLoader |
-| Text splitter | RecursiveCharacterTextSplitter |
-| Conversation memory | RunnableWithMessageHistory |
-
-## Configuration
-
-Set these via `.env` or environment variables:
-
-| Variable | Default | Description |
-|---|---|---|
-| `GEMINI_API_KEY` | — | Google Gemini API key (required) |
-| `MODEL_NAME` | `gemini-3.1-flash-lite` | Gemini model to use |
-
-CLI flags override these defaults at runtime:
-
-| Parameter | Default | CLI flag |
-|---|---|---|
-| Chunk size | 1000 | `--chunk-size` |
-| Chunk overlap | 100 | `--chunk-overlap` |
-| Top-k results | 5 | `query --top-k` |
+| Cache | In-memory (`cachetools.TTLCache`) or Redis |
+| Session memory | In-memory or Redis |
+| Async jobs | RQ (Redis-backed) |
+| Auth | API-key scopes (`query`, `ingest`) + `slowapi` rate limiting |
+| Observability | OpenTelemetry (OTLP), structured JSON logging |
+| Frontend | React 19, TypeScript, Vite 8, Tailwind 4 |
+| Deployment | Docker multi-stage builds, docker-compose |
+| CI | GitHub Actions (ruff, pyright, oxlint, tsc, pytest, Docker) |
 
 ## Development
 
 ```bash
-# Install dev dependencies
-pip install pytest
+# Clone and install with dev dependencies
+git clone https://github.com/Abhishek-M-29/RAG-implementation.git
+cd RAG-implementation
+pip install -e ".[dev]"
 
-# Run all tests
-python3 -m pytest tests/ -v
+# Run tests
+pytest tests/ -v
 
-# Run specific test file
-python3 -m pytest tests/test_pipeline.py -v
+# Lint
+ruff check ragframework/
 
-# Run with coverage
-python3 -m pytest tests/ --cov=src --cov=main
+# Typecheck
+pyright ragframework/
 ```
 
-Tests use temporary directories and generated PDFs (`fpdf2`) so no cleanup is needed. The `sample_pdfs` fixture creates three test PDFs with distinct content for verifying indexing, retrieval, and append operations.
+## License
 
-## FAQ
-
-<details>
-<summary><b>Do I need a GPU?</b></summary>
-No. The embedding model (`all-MiniLM-L6-v2`) runs on CPU and is fast enough for local use.
-</details>
-
-<details>
-<summary><b>Can I use a different LLM?</b></summary>
-Yes. Set `MODEL_NAME` in `.env` to any Gemini model, or swap `ChatGoogleGenerativeAI` in `generation.py` for another LangChain LLM provider.
-</details>
-
-<details>
-<summary><b>Does querying use the internet?</b></summary>
-Only the Gemini API call requires internet. Embedding and vector search are fully local.
-</details>
-
-<details>
-<summary><b>How do I add more documents later?</b></summary>
-Use `main.py index -d ./new-pdfs -a` to append to the existing index without losing previously indexed content.
-</details>
+MIT

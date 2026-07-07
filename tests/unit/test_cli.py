@@ -1,10 +1,8 @@
-import sys
-from argparse import ArgumentParser
 from pathlib import Path
+
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from main import build_parser
+from ragframework.cli import build_parser
 
 
 class TestCLIParser:
@@ -16,7 +14,7 @@ class TestCLIParser:
             for a in parser._actions:
                 if hasattr(a, 'choices') and a.choices:
                     choices.update(a.choices.keys())
-            assert choices == {'index', 'reindex', 'clear', 'query', 'info'}
+            assert choices == {'index', 'clear', 'query', 'info', 'serve', 'worker'}
 
     def test_index_subcommand_defaults(self):
         parser = build_parser()
@@ -54,31 +52,10 @@ class TestCLIParser:
         assert args.files == ['doc.pdf']
         assert args.append is True
 
-    def test_reindex_defaults(self):
-        parser = build_parser()
-        args = parser.parse_args(['reindex'])
-        assert args.command == 'reindex'
-        assert args.dirs is None
-        assert args.files is None
-        assert args.chunk_size == 1000
-        assert args.chunk_overlap == 100
-
-    def test_reindex_with_flags(self):
-        parser = build_parser()
-        args = parser.parse_args(['reindex', '-d', 'mydir', '-f', 'doc.pdf'])
-        assert args.dirs == ['mydir']
-        assert args.files == ['doc.pdf']
-
     def test_query_defaults(self):
         parser = build_parser()
         args = parser.parse_args(['query'])
         assert args.command == 'query'
-        assert args.top_k == 5
-
-    def test_query_custom_top_k(self):
-        parser = build_parser()
-        args = parser.parse_args(['query', '--top-k', '10'])
-        assert args.top_k == 10
 
     def test_clear_subcommand(self):
         parser = build_parser()
@@ -90,7 +67,17 @@ class TestCLIParser:
         args = parser.parse_args(['info'])
         assert args.command == 'info'
 
-    def test_no_args_returns_none(self):
+    def test_serve_subcommand(self):
         parser = build_parser()
-        args = parser.parse_args([])
-        assert args.command is None
+        args = parser.parse_args(['serve'])
+        assert args.command == 'serve'
+
+    def test_worker_subcommand(self):
+        parser = build_parser()
+        args = parser.parse_args(['worker'])
+        assert args.command == 'worker'
+
+    def test_no_args_exits(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args([])

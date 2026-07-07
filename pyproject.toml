@@ -1,0 +1,72 @@
+[project]
+name = "ragframework"
+version = "1.0.0"
+description = "A distributable RAG framework supporting bring-your-own vector stores and LLM providers"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+keywords = ["rag", "llm", "vector-search", "faiss", "gemini", "langchain"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "langchain>=0.3.18",
+    "langchain-community>=0.3.18",
+    "langchain-google-genai>=2.1.0",
+    "google-api-core>=2.0.0",
+    "langchain-huggingface>=0.1.2",
+    "sentence-transformers>=2.5.1",
+    "faiss-cpu>=1.9.0",
+    "pypdf>=4.1.0",
+    "numpy>=2.1",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "cachetools>=5.0",
+    "redis>=5.0",
+    "python-multipart>=0.0.12",
+    "python-json-logger>=4.0.0",
+    "slowapi>=0.1.9",
+    "tenacity>=9.0.0",
+    "rq>=2.0",
+    "opentelemetry-sdk>=1.30.0",
+    "opentelemetry-api>=1.30.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.30.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "fpdf2==2.8.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/Abhishek-M-29/RAG-implementation"
+Source = "https://github.com/Abhishek-M-29/RAG-implementation"
+Documentation = "https://github.com/Abhishek-M-29/RAG-implementation"
+Issues = "https://github.com/Abhishek-M-29/RAG-implementation/issues"
+
+[project.scripts]
+ragframework = "ragframework.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["ragframework*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[tool.pyright]
+include = ["ragframework"]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
