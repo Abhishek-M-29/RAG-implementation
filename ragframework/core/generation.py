@@ -1,9 +1,9 @@
 import logging
 
-from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_classic.chains import create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,10 @@ def build_rag_chain(
     retrieval_chain = create_retrieval_chain(retriever, document_chain)
 
     if get_session_history is None:
-        raise ValueError("A get_session_history function must be provided for RunnableWithMessageHistory.")
+        raise ValueError(
+            "A get_session_history function must be provided "
+            "for RunnableWithMessageHistory."
+        )
 
     conversational_rag_chain = RunnableWithMessageHistory(
         retrieval_chain,

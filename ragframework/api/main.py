@@ -8,11 +8,11 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from ragframework.config import Settings, validate_config
 from ragframework.api.deps import limiter
+from ragframework.config import Settings, validate_config
 from ragframework.observability.logging import configure_logging, request_id_var
-from ragframework.observability.tracing import setup_tracing
 from ragframework.observability.metrics import setup_metrics
+from ragframework.observability.tracing import setup_tracing
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +82,8 @@ def _warm_models(settings: Settings):
         "embedding_model": embedding_model,
         "model_name": settings.embedding_model,
     }
-    from ragframework.vectorstores.registry import get_vector_store
     from ragframework.llms.registry import get_llm
+    from ragframework.vectorstores.registry import get_vector_store
     get_vector_store(settings)
     get_llm(settings)
 
@@ -123,7 +123,7 @@ def create_app() -> FastAPI:
         finally:
             request_id_var.reset(token)
 
-    from ragframework.api.routers import query, ingestion, health
+    from ragframework.api.routers import health, ingestion, query
     app.include_router(query.router)
     app.include_router(ingestion.router)
     app.include_router(health.router)

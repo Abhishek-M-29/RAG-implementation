@@ -5,12 +5,10 @@ import time
 import uuid
 
 from langchain_community.document_loaders import PyPDFLoader
-from opentelemetry import trace as otel_trace
 from pypdf import PdfReader
 
-from ragframework.cache import get_cache, bump_index_fingerprint
-from ragframework.core.chunking import chunk_text
-from ragframework.observability.metrics import record_latency, record_cache_hit, record_cache_miss
+from ragframework.cache import bump_index_fingerprint
+from ragframework.observability.metrics import record_cache_hit, record_cache_miss, record_latency
 from ragframework.observability.tracing import get_tracer
 
 logger = logging.getLogger(__name__)
@@ -111,12 +109,12 @@ def embed_and_index_chunks(chunks, settings, cache, vector_store, source_filenam
         with tracer.start_as_current_span("embed_batch") as span:
             span.set_attribute("chunk_count", len(new_chunks))
             span.set_attribute("source", source_filename)
-            ids = vector_store.add_documents(new_chunks)
+            vector_store.add_documents(new_chunks)
         with tracer.start_as_current_span("upsert") as span:
             span.set_attribute("chunk_count", len(new_chunks))
             span.set_attribute("source", source_filename)
     else:
-        ids = vector_store.add_documents(new_chunks)
+        vector_store.add_documents(new_chunks)
     embedding_time = time.monotonic() - t0
     record_latency("embedding", embedding_time)
 

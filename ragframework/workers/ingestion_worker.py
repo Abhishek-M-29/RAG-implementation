@@ -3,7 +3,7 @@ import os
 
 import redis
 
-from ragframework.cache import get_cache, bump_index_fingerprint
+from ragframework.cache import bump_index_fingerprint, get_cache
 from ragframework.config import Settings
 from ragframework.core.chunking import chunk_text
 from ragframework.core.ingestion import (

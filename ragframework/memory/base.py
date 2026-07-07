@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+
 from langchain_core.chat_history import BaseChatMessageHistory
 
 

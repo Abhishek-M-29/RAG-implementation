@@ -10,10 +10,9 @@ from collections.abc import Iterator
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.runnables import RunnableLambda
-from opentelemetry import trace as otel_trace
 
-from ragframework.api.schemas import QueryRequest, QueryResponse, SourceChunk
 from ragframework.api.deps import limiter, require_scope
+from ragframework.api.schemas import QueryRequest, SourceChunk
 from ragframework.cache import get_cache, index_fingerprint
 from ragframework.config import Settings
 from ragframework.core.generation import build_rag_chain
@@ -21,12 +20,12 @@ from ragframework.core.retrieval import query_hash
 from ragframework.llms.registry import get_llm
 from ragframework.memory import get_memory
 from ragframework.observability.metrics import (
-    record_request,
     record_cache_hit,
     record_cache_miss,
-    record_latency,
-    record_tokens,
     record_error,
+    record_latency,
+    record_request,
+    record_tokens,
 )
 from ragframework.observability.tracing import get_tracer
 from ragframework.vectorstores.registry import get_vector_store

@@ -4,16 +4,15 @@ import time
 import google.api_core.exceptions
 import requests.exceptions
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.outputs import ChatResult
 from tenacity import (
-    before_sleep_log,
     retry,
     retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
 
-from ragframework.observability.metrics import record_retry_attempt, record_error
+from ragframework.observability.metrics import record_error, record_retry_attempt
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +129,6 @@ class RetryableChatModel(BaseChatModel):
         """
         attempt = 0
         max_attempts = 3
-        last_exception = None
         while attempt < max_attempts:
             try:
                 stream_iter = self._inner.stream(input, config=config, **kwargs)
@@ -142,7 +140,6 @@ class RetryableChatModel(BaseChatModel):
                 return
             except TRANSIENT_EXCEPTIONS as e:
                 attempt += 1
-                last_exception = e
                 record_retry_attempt("generation")
                 if attempt >= max_attempts:
                     logger.error(

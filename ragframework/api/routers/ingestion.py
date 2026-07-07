@@ -1,23 +1,23 @@
 import logging
 import os
 import uuid
+
 import redis
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 
 from ragframework.api.deps import limiter, require_scope
 from ragframework.api.schemas import (
     DeleteResponse,
-    DocumentUploadResponse,
-    DocumentListItem,
     DocumentListResponse,
+    DocumentUploadResponse,
     JobStatusResponse,
 )
 from ragframework.cache import bump_index_fingerprint
-from ragframework.config import Settings, validate_config
+from ragframework.config import Settings
 from ragframework.core.chunking import chunk_text
 from ragframework.core.ingestion import embed_and_index_chunks, load_and_extract_text_from_pdfs
 from ragframework.observability.logging import request_id_var
-from ragframework.observability.metrics import record_request, record_error, record_queue_depth
+from ragframework.observability.metrics import record_error, record_queue_depth, record_request
 from ragframework.observability.tracing import get_tracer
 from ragframework.vectorstores.registry import get_vector_store
 
@@ -79,6 +79,7 @@ def upload_document(
 
     if settings.async_ingestion:
         from rq import Queue
+
         from ragframework.workers.ingestion_worker import process_ingestion_job
 
         assert settings.redis_url is not None

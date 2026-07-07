@@ -3,10 +3,8 @@ import argparse
 
 from ragframework.config import Settings, validate_config
 from ragframework.observability.logging import configure_logging
-from ragframework.observability.tracing import setup_tracing
 from ragframework.observability.metrics import setup_metrics
-from ragframework.vectorstores.registry import get_vector_store
-from ragframework.llms.registry import get_llm
+from ragframework.observability.tracing import setup_tracing
 
 
 def build_parser():
@@ -15,11 +13,16 @@ def build_parser():
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     index_parser = subparsers.add_parser("index", help="Index documents into the knowledge base")
-    index_parser.add_argument("-d", "--dir", action="append", dest="dirs", help="Directory containing PDF files")
-    index_parser.add_argument("-f", "--file", action="append", dest="files", help="Specific PDF file(s)")
-    index_parser.add_argument("-a", "--append", action="store_true", help="Append to existing index instead of replacing")
-    index_parser.add_argument("--chunk-size", type=int, default=1000, help="Characters per chunk")
-    index_parser.add_argument("--chunk-overlap", type=int, default=100, help="Overlap between chunks")
+    index_parser.add_argument("-d", "--dir", action="append", dest="dirs",
+                              help="Directory containing PDF files")
+    index_parser.add_argument("-f", "--file", action="append", dest="files",
+                              help="Specific PDF file(s)")
+    index_parser.add_argument("-a", "--append", action="store_true",
+                              help="Append to existing index instead of replacing")
+    index_parser.add_argument("--chunk-size", type=int, default=1000,
+                              help="Characters per chunk")
+    index_parser.add_argument("--chunk-overlap", type=int, default=100,
+                              help="Overlap between chunks")
     subparsers.add_parser("query", help="Query the knowledge base interactively")
     subparsers.add_parser("clear", help="Clear/delete the index")
     subparsers.add_parser("info", help="Show information about the current index")
@@ -61,8 +64,8 @@ def main():
                 "REDIS_URL must be set to run the async ingestion worker. "
                 "Set it in your .env or configure it via environment variables."
             )
-        from rq import Worker
         import redis as redis_module
+        from rq import Worker
         redis_conn = redis_module.from_url(
             settings.redis_url,
             socket_connect_timeout=settings.object_storage_timeout_seconds,

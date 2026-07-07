@@ -1,12 +1,16 @@
 import logging
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 logger = logging.getLogger(__name__)
 
 
-def chunk_text(documents_to_split: list[Document], chunk_size: int, chunk_overlap: int) -> list[Document]:
+def chunk_text(
+    documents_to_split: list[Document],
+    chunk_size: int,
+    chunk_overlap: int,
+) -> list[Document]:
     if not documents_to_split:
         return []
 
