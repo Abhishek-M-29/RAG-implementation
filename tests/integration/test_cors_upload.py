@@ -3,6 +3,7 @@ import pytest
 
 
 def _app_with_cors(monkeypatch, tmp_path):
+    monkeypatch.setenv("LLM_CONFIG__API_KEY", "sk-test-key")
     monkeypatch.setenv("ASYNC_INGESTION", "false")
     monkeypatch.setenv("AUTH_ENABLED", "false")
     monkeypatch.setenv("CACHE_BACKEND", "memory")
@@ -13,6 +14,7 @@ def _app_with_cors(monkeypatch, tmp_path):
 
 
 def _app_no_cors(monkeypatch, tmp_path):
+    monkeypatch.setenv("LLM_CONFIG__API_KEY", "sk-test-key")
     monkeypatch.setenv("ASYNC_INGESTION", "false")
     monkeypatch.setenv("AUTH_ENABLED", "false")
     monkeypatch.setenv("CACHE_BACKEND", "memory")
