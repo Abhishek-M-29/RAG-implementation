@@ -9,7 +9,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from ragframework.api.deps import limiter
-from ragframework.config import Settings, validate_config
+from ragframework.config import Settings, get_settings, validate_config
 from ragframework.observability.logging import configure_logging, request_id_var
 from ragframework.observability.metrics import setup_metrics
 from ragframework.observability.tracing import setup_tracing
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings = Settings()
+    settings = get_settings()
     configure_logging(settings.log_level)
     validate_config(settings)
 
@@ -89,7 +89,7 @@ def _warm_models(settings: Settings):
 
 
 def create_app() -> FastAPI:
-    settings = Settings()
+    settings = get_settings()
 
     app = FastAPI(
         title="RAG Framework",

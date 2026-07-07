@@ -1,13 +1,13 @@
 import time
 
-from cachetools import TTLCache
+from cachetools import Cache
 
 from ragframework.cache.base import BaseCache
 
 
 class MemoryCache(BaseCache):
-    def __init__(self, maxsize: int = 1024, default_ttl: int = 3600):
-        self._cache = TTLCache(maxsize=maxsize, ttl=default_ttl)
+    def __init__(self, maxsize: int = 1024):
+        self._cache: Cache = Cache(maxsize=maxsize)
         self._ttls: dict[str, float] = {}
 
     def get(self, key: str) -> str | None:

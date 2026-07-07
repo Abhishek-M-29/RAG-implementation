@@ -44,5 +44,9 @@ class BaseVectorStore(ABC):
         """Remove specific chunks by ID — required for re-indexing updated documents."""
 
     @abstractmethod
+    def list_documents(self) -> dict[str, int]:
+        """Return a mapping of source filename → chunk count for all indexed documents."""
+
+    @abstractmethod
     def health_check(self) -> bool:
         """Used by the /ready endpoint (Stage 9) and by the contract tests (Stage 12)."""

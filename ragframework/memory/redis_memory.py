@@ -1,6 +1,11 @@
-import json
+from __future__ import annotations
 
-import redis
+import json
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import redis
+
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
@@ -42,6 +47,8 @@ class _RedisChatMessageHistory(BaseChatMessageHistory):
 
 class RedisSessionMemory(BaseSessionMemory):
     def __init__(self, redis_url: str):
+        import redis
+
         self._client = redis.from_url(redis_url)
 
     def _history_key(self, session_id: str) -> str:

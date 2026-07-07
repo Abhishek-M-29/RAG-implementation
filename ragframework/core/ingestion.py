@@ -85,7 +85,19 @@ def _embedding_cache_key(chunk_text_value: str, model_name: str) -> str:
 
 
 def embed_and_index_chunks(chunks, settings, cache, vector_store, source_filename):
-    new_chunks = []
+    import json
+
+    from langchain_huggingface import HuggingFaceEmbeddings
+
+    embedding_model = settings.vector_store_config.get("embedding_model")
+    if embedding_model is None:
+        embedding_model = HuggingFaceEmbeddings(model_name=settings.embedding_model)
+
+    texts = []
+    metadatas = []
+    embedded_vectors: list[list[float] | None] = []
+    uncached_indices: list[int] = []
+
     for chunk in chunks:
         if "id" not in chunk.metadata:
             chunk.metadata["id"] = str(uuid.uuid4())
@@ -93,43 +105,61 @@ def embed_and_index_chunks(chunks, settings, cache, vector_store, source_filenam
             chunk.metadata["source"] = source_filename
 
         ck = _embedding_cache_key(chunk.page_content, settings.embedding_model)
-        if cache.get(ck) is not None:
+        cached = cache.get(ck)
+        if cached is not None:
             record_cache_hit()
-            continue
-        new_chunks.append(chunk)
+            embedded_vectors.append(json.loads(cached))
+        else:
+            record_cache_miss()
+            embedded_vectors.append(None)
+            uncached_indices.append(len(texts))
 
-    if not new_chunks:
-        logger.info("All chunks already cached — skipping indexing")
-        return
+        texts.append(chunk.page_content)
+        metadatas.append(dict(chunk.metadata))
+
+    embedding_time = 0.0
+    if uncached_indices:
+        texts_to_embed = [texts[i] for i in uncached_indices]
+
+        tracer = get_tracer()
+        t0 = time.monotonic()
+        if tracer is not None:
+            with tracer.start_as_current_span("embed_batch") as span:
+                span.set_attribute("chunk_count", len(texts_to_embed))
+                span.set_attribute("source", source_filename)
+                new_vectors = embedding_model.embed_documents(texts_to_embed)
+        else:
+            new_vectors = embedding_model.embed_documents(texts_to_embed)
+        embedding_time = time.monotonic() - t0
+        record_latency("embedding", embedding_time)
+
+        for i, vec in zip(uncached_indices, new_vectors):
+            embedded_vectors[i] = vec
+            ck = _embedding_cache_key(texts[i], settings.embedding_model)
+            cache.set(ck, json.dumps(vec), ttl_seconds=None)
 
     tracer = get_tracer()
-
-    t0 = time.monotonic()
     if tracer is not None:
-        with tracer.start_as_current_span("embed_batch") as span:
-            span.set_attribute("chunk_count", len(new_chunks))
-            span.set_attribute("source", source_filename)
-            vector_store.add_documents(new_chunks)
         with tracer.start_as_current_span("upsert") as span:
-            span.set_attribute("chunk_count", len(new_chunks))
+            span.set_attribute("chunk_count", len(chunks))
             span.set_attribute("source", source_filename)
+            vector_store.add_embedded_documents(
+                list(zip(texts, embedded_vectors)), metadatas,
+            )
     else:
-        vector_store.add_documents(new_chunks)
-    embedding_time = time.monotonic() - t0
-    record_latency("embedding", embedding_time)
-
-    for chunk in new_chunks:
-        ck = _embedding_cache_key(chunk.page_content, settings.embedding_model)
-        cache.set(ck, "1", ttl_seconds=None)
-        record_cache_miss()
+        vector_store.add_embedded_documents(
+            list(zip(texts, embedded_vectors)), metadatas,
+        )
 
     bump_index_fingerprint()
     logger.info(
-        "Indexed %d new chunks from %s",
-        len(new_chunks), source_filename,
+        "Indexed %d chunks from %s",
+        len(chunks), source_filename,
         extra={
-            "chunk_count": len(new_chunks),
+            "chunk_count": len(chunks),
             "source": source_filename,
+            "cached_count": len(chunks) - len(uncached_indices),
+            "computed_count": len(uncached_indices),
             "embedding_time": round(embedding_time, 3),
         },
     )

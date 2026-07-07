@@ -62,6 +62,38 @@ class FaissStore(BaseVectorStore):
         )
         return ids
 
+    def add_embedded_documents(
+        self,
+        text_embeddings: list[tuple[str, list[float]]],
+        metadatas: list[dict],
+    ) -> list[str]:
+        if not text_embeddings:
+            return []
+
+        texts = [t for t, _ in text_embeddings]
+        vectors = [v for _, v in text_embeddings]
+
+        if self._store is None:
+            self._store = FAISS.from_embeddings(
+                list(zip(texts, vectors)),
+                self._embedding,
+                metadatas=metadatas,
+            )
+        else:
+            self._store.add_embeddings(
+                list(zip(texts, vectors)),
+                metadatas=metadatas,
+            )
+
+        self._persist()
+        ids = [m.get("id", "") for m in metadatas]
+        logger.info(
+            "Added %d embedded documents to FAISS index at %s",
+            len(text_embeddings), self._index_path,
+            extra={"doc_count": len(text_embeddings), "index_path": self._index_path},
+        )
+        return ids
+
     def similarity_search(self, query: str, k: int = 5) -> list[Document]:
         if self._store is None:
             return []

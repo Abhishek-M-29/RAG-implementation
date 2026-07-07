@@ -2,7 +2,6 @@ import logging
 import os
 import uuid
 
-import redis
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 
 from ragframework.api.deps import limiter, require_scope
@@ -13,7 +12,7 @@ from ragframework.api.schemas import (
     JobStatusResponse,
 )
 from ragframework.cache import bump_index_fingerprint
-from ragframework.config import Settings
+from ragframework.config import Settings, get_settings
 from ragframework.core.chunking import chunk_text
 from ragframework.core.ingestion import embed_and_index_chunks, load_and_extract_text_from_pdfs
 from ragframework.observability.logging import request_id_var
@@ -34,7 +33,7 @@ _ingestion_rate_limit = _settings.ingestion_rate_limit
 def upload_document(
     request: Request,
     file: UploadFile = File(...),
-    settings: Settings = Depends(lambda: Settings()),
+    settings: Settings = Depends(get_settings),
     _auth: None = Depends(require_scope("ingest")),
 ):
     record_request("ingestion")
@@ -78,6 +77,8 @@ def upload_document(
     )
 
     if settings.async_ingestion:
+        import redis
+
         from rq import Queue
 
         from ragframework.workers.ingestion_worker import process_ingestion_job
@@ -135,6 +136,19 @@ def upload_document(
             chunks, settings, cache, vector_store, source_filename=file.filename,
         )
 
+        if settings.redis_url:
+            import redis
+
+            rc = redis.from_url(
+                settings.redis_url,
+                socket_connect_timeout=settings.object_storage_timeout_seconds,
+                socket_timeout=settings.object_storage_timeout_seconds,
+            )
+            bump_index_fingerprint(redis_client=rc)
+            rc.connection_pool.disconnect()
+        else:
+            bump_index_fingerprint()
+
         logger.info(
             "Ingestion complete",
             extra={
@@ -152,7 +166,7 @@ def upload_document(
 @limiter.limit(_ingestion_rate_limit)
 def list_documents(
     request: Request,
-    settings: Settings = Depends(lambda: Settings()),
+    settings: Settings = Depends(get_settings),
     _auth: None = Depends(require_scope("ingest")),
 ):
     return DocumentListResponse(documents=[])
@@ -163,11 +177,13 @@ def list_documents(
 def get_job_status(
     request: Request,
     job_id: str,
-    settings: Settings = Depends(lambda: Settings()),
+    settings: Settings = Depends(get_settings),
     _auth: None = Depends(require_scope("ingest")),
 ):
     if not settings.async_ingestion:
         return JobStatusResponse(job_id=job_id, status="done")
+
+    import redis
 
     from rq.job import Job
 
@@ -205,11 +221,22 @@ def get_job_status(
 def delete_document(
     request: Request,
     id: str,
-    settings: Settings = Depends(lambda: Settings()),
+    settings: Settings = Depends(get_settings),
     _auth: None = Depends(require_scope("ingest")),
 ):
     vector_store = get_vector_store(settings)
     vector_store.delete([id])
-    bump_index_fingerprint()
+    if settings.redis_url:
+        import redis
+
+        rc = redis.from_url(
+            settings.redis_url,
+            socket_connect_timeout=settings.object_storage_timeout_seconds,
+            socket_timeout=settings.object_storage_timeout_seconds,
+        )
+        bump_index_fingerprint(redis_client=rc)
+        rc.connection_pool.disconnect()
+    else:
+        bump_index_fingerprint()
     logger.info("Document deleted", extra={"document_id": id})
     return DeleteResponse(status="deleted", id=id)

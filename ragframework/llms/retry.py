@@ -129,16 +129,25 @@ class RetryableChatModel(BaseChatModel):
         """
         attempt = 0
         max_attempts = 3
+        first = True
         while attempt < max_attempts:
             try:
                 stream_iter = self._inner.stream(input, config=config, **kwargs)
-                first = True
                 for chunk in stream_iter:
                     if first:
                         first = False
                     yield chunk
                 return
             except TRANSIENT_EXCEPTIONS as e:
+                if not first:
+                    logger.error(
+                        "Mid-stream transient error — not retrying to "
+                        "avoid duplicate output",
+                        extra={"error": str(e)},
+                    )
+                    record_error("generation", "mid_stream_failure")
+                    raise
+
                 attempt += 1
                 record_retry_attempt("generation")
                 if attempt >= max_attempts:

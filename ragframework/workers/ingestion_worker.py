@@ -1,10 +1,8 @@
 import logging
 import os
 
-import redis
-
 from ragframework.cache import bump_index_fingerprint, get_cache
-from ragframework.config import Settings
+from ragframework.config import get_settings
 from ragframework.core.chunking import chunk_text
 from ragframework.core.ingestion import (
     embed_and_index_chunks,
@@ -24,7 +22,9 @@ def process_ingestion_job(file_path: str, source_filename: str, request_id: str 
     registry (get_vector_store, get_cache) as the API process.  Never
     constructs a FaissStore or GoogleGenAIProvider directly.
     """
-    settings = Settings()
+    import redis
+
+    settings = get_settings()
     extra = {"file": source_filename, "request_id": request_id}
 
     logger.info("Worker picked up ingestion job", extra=extra)

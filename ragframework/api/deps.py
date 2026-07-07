@@ -4,14 +4,14 @@ from fastapi import HTTPException, Request, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from ragframework.config import Settings
+from ragframework.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 
 def require_scope(required_scope: str):
     def _check(request: Request) -> None:
-        settings = Settings()
+        settings = get_settings()
         if not settings.auth_enabled:
             return
         auth = request.headers.get("Authorization")
@@ -60,7 +60,7 @@ def require_scope(required_scope: str):
 
 
 def _rate_limit_key(request: Request) -> str:
-    settings = Settings()
+    settings = get_settings()
     if settings.auth_enabled:
         auth = request.headers.get("Authorization", "")
         if auth.startswith("Bearer "):

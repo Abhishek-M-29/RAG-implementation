@@ -1,5 +1,6 @@
 import logging
 import os
+from functools import lru_cache
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -112,3 +113,8 @@ def validate_config(settings: Settings) -> None:
             "async_ingestion": settings.async_ingestion,
         },
     )
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()

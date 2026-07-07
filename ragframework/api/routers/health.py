@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
 from ragframework.api.schemas import ConfigResponse, HealthResponse
-from ragframework.config import Settings
+from ragframework.config import Settings, get_settings
 from ragframework.llms.registry import get_llm
 from ragframework.vectorstores.registry import get_vector_store
 
@@ -19,7 +19,7 @@ def health():
 
 
 @router.get("/v1/ready")
-def ready(settings: Settings = Depends(lambda: Settings())):
+def ready(settings: Settings = Depends(get_settings)):
     try:
         vs = get_vector_store(settings)
         if not vs.health_check():
@@ -36,13 +36,11 @@ def ready(settings: Settings = Depends(lambda: Settings())):
         )
 
     try:
-        llm = get_llm(settings)
-        from langchain_core.messages import HumanMessage
-        llm.invoke([HumanMessage(content="ping")])
+        get_llm(settings)
     except Exception as exc:
-        logger.warning("Readiness check failed: LLM unreachable", extra={"error": str(exc)})
+        logger.warning("Readiness check failed: LLM unavailable", extra={"error": str(exc)})
         return JSONResponse(
-            content={"status": "not_ready", "detail": f"LLM unreachable: {exc}"},
+            content={"status": "not_ready", "detail": f"LLM unavailable: {exc}"},
             status_code=503,
         )
 
@@ -50,7 +48,7 @@ def ready(settings: Settings = Depends(lambda: Settings())):
 
 
 @router.get("/v1/config", response_model=ConfigResponse)
-def get_config(settings: Settings = Depends(lambda: Settings())):
+def get_config(settings: Settings = Depends(get_settings)):
     return ConfigResponse(
         vector_store=settings.vector_store,
         llm_provider=settings.llm_provider,

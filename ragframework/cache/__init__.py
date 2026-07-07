@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 import logging
 import threading
+from typing import TYPE_CHECKING
 
-import redis as redis_module
+if TYPE_CHECKING:
+    import redis as redis_module
 
 from ragframework.cache.base import BaseCache
 from ragframework.cache.memory_cache import MemoryCache

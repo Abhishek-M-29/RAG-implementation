@@ -14,7 +14,7 @@ from langchain_core.runnables import RunnableLambda
 from ragframework.api.deps import limiter, require_scope
 from ragframework.api.schemas import QueryRequest, SourceChunk
 from ragframework.cache import get_cache, index_fingerprint
-from ragframework.config import Settings
+from ragframework.config import Settings, get_settings
 from ragframework.core.generation import build_rag_chain
 from ragframework.core.retrieval import query_hash
 from ragframework.llms.registry import get_llm
@@ -181,7 +181,7 @@ def _generation_stream(
 def query_endpoint(
     request: Request,
     body: QueryRequest,
-    settings: Settings = Depends(lambda: Settings()),
+    settings: Settings = Depends(get_settings),
     _auth: None = Depends(require_scope("query")),
 ):
     record_request("query")
