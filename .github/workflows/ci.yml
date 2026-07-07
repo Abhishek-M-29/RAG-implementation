@@ -110,6 +110,9 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
+      - name: Lowercase repository
+        id: repo
+        run: echo "repo=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
@@ -124,20 +127,20 @@ jobs:
           context: .
           file: docker/Dockerfile.api
           push: true
-          tags: ghcr.io/${{ github.repository }}/api:latest,ghcr.io/${{ github.repository }}/api:${{ github.sha }}
+          tags: ghcr.io/${{ steps.repo.outputs.repo }}/api:latest,ghcr.io/${{ steps.repo.outputs.repo }}/api:${{ github.sha }}
       - name: Build and push worker image
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.15.0
         with:
           context: .
           file: docker/Dockerfile.worker
           push: true
-          tags: ghcr.io/${{ github.repository }}/worker:latest,ghcr.io/${{ github.repository }}/worker:${{ github.sha }}
+          tags: ghcr.io/${{ steps.repo.outputs.repo }}/worker:latest,ghcr.io/${{ steps.repo.outputs.repo }}/worker:${{ github.sha }}
       - name: Build and push frontend image
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.15.0
         with:
           context: .
           file: docker/Dockerfile.frontend
           push: true
-          tags: ghcr.io/${{ github.repository }}/frontend:latest,ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
+          tags: ghcr.io/${{ steps.repo.outputs.repo }}/frontend:latest,ghcr.io/${{ steps.repo.outputs.repo }}/frontend:${{ github.sha }}
           build-args: |
             VITE_API_BASE_URL=http://localhost:8000
