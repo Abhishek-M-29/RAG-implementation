@@ -36,14 +36,14 @@ class TestReady:
         data = response.json()
         assert "vector store" in data.get("detail", "").lower()
 
-    def test_ready_returns_503_when_llm_fails(self, mock_connectors):
-        mock_vs, mock_llm = mock_connectors
-        orig_generate = mock_llm._generate
+    def test_ready_returns_503_when_llm_fails(self, mock_connectors, monkeypatch):
+        mock_vs, _ = mock_connectors
 
-        def broken_generate(*a, **kw):
-            raise RuntimeError("LLM down")
-
-        mock_llm._generate = broken_generate
+        import ragframework.api.routers.health
+        monkeypatch.setattr(
+            ragframework.api.routers.health, "get_llm",
+            lambda s: (_ for _ in ()).throw(RuntimeError("LLM configuration failed")),
+        )
 
         from ragframework.api.main import create_app
         app = create_app()

@@ -104,6 +104,13 @@ class MockVectorStore:
         for doc_id in ids:
             self._docs.pop(doc_id, None)
 
+    def list_documents(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for doc in self._docs.values():
+            source = doc.metadata.get("source", "unknown")
+            counts[source] = counts.get(source, 0) + 1
+        return counts
+
     def health_check(self):
         return self._healthy
 

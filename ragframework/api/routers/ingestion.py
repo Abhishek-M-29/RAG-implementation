@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from ragframework.api.deps import limiter, require_scope
 from ragframework.api.schemas import (
     DeleteResponse,
+    DocumentListItem,
     DocumentListResponse,
     DocumentUploadResponse,
     JobStatusResponse,
@@ -169,7 +170,13 @@ def list_documents(
     settings: Settings = Depends(get_settings),
     _auth: None = Depends(require_scope("ingest")),
 ):
-    return DocumentListResponse(documents=[])
+    vector_store = get_vector_store(settings)
+    doc_counts = vector_store.list_documents()
+    documents = [
+        DocumentListItem(id=source, filename=source, chunk_count=count)
+        for source, count in doc_counts.items()
+    ]
+    return DocumentListResponse(documents=documents)
 
 
 @router.get("/v1/documents/{job_id}", response_model=JobStatusResponse)
