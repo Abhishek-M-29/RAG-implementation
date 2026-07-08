@@ -1,5 +1,4 @@
 from fastapi.testclient import TestClient
-import pytest
 
 
 def _app_with_cors(monkeypatch, tmp_path):
@@ -35,7 +34,7 @@ def _pdf_bytes():
         pdf.set_font("Helvetica", size=12)
     pdf.cell(text="test content")
     r = pdf.output(dest="S")
-    return bytes(r) if isinstance(r, bytearray) else r.encode("latin-1") if isinstance(r, str) else r
+    return bytes(r) if isinstance(r, bytearray) else r.encode("latin-1") if isinstance(r, str) else r  # noqa: E501
 
 
 class TestCORS:

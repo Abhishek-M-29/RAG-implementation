@@ -1,10 +1,8 @@
-import pytest
 from langchain_core.documents import Document
 
-from ragframework.core.ingestion import get_pdf_paths_from_directory
 from ragframework.core.chunking import chunk_text
+from ragframework.core.ingestion import get_pdf_paths_from_directory
 from ragframework.vectorstores.faiss_store import FaissStore
-from ragframework.vectorstores.registry import get_vector_store
 
 
 class TestCollectPdfPaths:
@@ -38,7 +36,7 @@ class TestIndexLifecycle:
         index_path = str(tmp_path / "faiss_test")
 
         docs = [
-            Document(page_content="Apple banana fruit.", metadata={"id": "p1", "source": "test.pdf"}),
+            Document(page_content="Apple banana fruit.", metadata={"id": "p1", "source": "test.pdf"}),  # noqa: E501
             Document(page_content="Dog cat animal.", metadata={"id": "p2", "source": "test.pdf"}),
         ]
 
@@ -66,7 +64,7 @@ class TestIndexLifecycle:
         emb = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
         docs_a = [
-            Document(page_content="First set of documents.", metadata={"id": "a1", "source": "a.pdf"}),
+            Document(page_content="First set of documents.", metadata={"id": "a1", "source": "a.pdf"}),  # noqa: E501
         ]
         store = FaissStore(index_path, embedding_model=emb)
         store._load_or_init()

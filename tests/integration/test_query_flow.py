@@ -1,5 +1,5 @@
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -80,5 +80,5 @@ class TestQueryFlow:
         assert response.status_code == 422
 
     def test_query_rejects_invalid_json(self, client):
-        response = client.post("/v1/query", data="not json", headers={"Content-Type": "application/json"})
+        response = client.post("/v1/query", data="not json", headers={"Content-Type": "application/json"})  # noqa: E501
         assert response.status_code == 422

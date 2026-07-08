@@ -16,11 +16,12 @@ they can replace the mock with a live call by providing LLM_CONFIG__API_KEY
 and removing the patch on model._inner._generate.
 """
 
+from unittest.mock import patch
+
 import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
-from unittest.mock import patch
 
 from ragframework.llms.registry import LLM_PROVIDER_REGISTRY
 

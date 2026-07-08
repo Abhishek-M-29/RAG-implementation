@@ -1,17 +1,15 @@
 import os
-import tempfile
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from langchain_core.documents import Document
 
 from ragframework.core.ingestion import (
-    get_pdf_paths_from_directory,
-    _validate_pdf_safety,
-    load_and_extract_text_from_pdfs,
     _embedding_cache_key,
+    _validate_pdf_safety,
     embed_and_index_chunks,
+    get_pdf_paths_from_directory,
+    load_and_extract_text_from_pdfs,
 )
 
 
@@ -158,4 +156,4 @@ def _make_minimal_pdf(page_count: int) -> bytes:
     for _ in range(page_count):
         pdf.add_page()
         pdf.cell(text="x")
-    return pdf.output(dest="S").encode("latin-1") if isinstance(pdf.output(dest="S"), str) else bytes(pdf.output(dest="S"))
+    return pdf.output(dest="S").encode("latin-1") if isinstance(pdf.output(dest="S"), str) else bytes(pdf.output(dest="S"))  # noqa: E501

@@ -7,17 +7,16 @@ Database 15 is flushed before each test in this file to guarantee isolation.
 """
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 import redis as redis_module
-from fpdf import FPDF
 from fastapi.testclient import TestClient
+from fpdf import FPDF
 
 from ragframework.api.main import create_app
-from ragframework.cache import index_fingerprint, bump_index_fingerprint, _FINGERPRINT_REDIS_KEY
+from ragframework.api.schemas import DocumentUploadResponse, JobStatusResponse
+from ragframework.cache import _FINGERPRINT_REDIS_KEY, bump_index_fingerprint, index_fingerprint
 from ragframework.config import Settings
-from ragframework.api.schemas import JobStatusResponse, DocumentUploadResponse
 
 REDIS_TEST_DB = 15
 REDIS_TEST_URL = f"redis://localhost:6379/{REDIS_TEST_DB}"
@@ -353,13 +352,14 @@ class TestWorkerFunction:
 
     def test_worker_uses_registry(self, tmp_path, monkeypatch):
         """Worker imports from the connector registry, not vendor modules."""
-        import ragframework.workers.ingestion_worker as w_mod
         import inspect
+
+        import ragframework.workers.ingestion_worker as w_mod
         source = inspect.getsource(w_mod)
         assert "from ragframework.vectorstores.registry import get_vector_store" in source
         assert "from ragframework.vectorstores.faiss_store import" not in source
         assert "from ragframework.llms.google_genai import" not in source
-        assert "from ragframework.llms.registry import get_llm" not in source  # not needed in worker
+        assert "from ragframework.llms.registry import get_llm" not in source  # not needed in worker  # noqa: E501
 
 
 # ===================================================================

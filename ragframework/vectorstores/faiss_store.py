@@ -128,10 +128,10 @@ class FaissStore(BaseVectorStore):
 
         self._persist()
         logger.info(
-            "Deleted %d documents using native remove_ids, %d remain",
-            len(faiss_ids_to_remove), self._store.index.ntotal,
+            "Deleted %d documents using native delete, %d remain",
+            len(docstore_ids_to_remove), self._store.index.ntotal,
             extra={
-                "deleted_count": len(faiss_ids_to_remove),
+                "deleted_count": len(docstore_ids_to_remove),
                 "remaining_count": self._store.index.ntotal
             },
         )

@@ -1,16 +1,17 @@
-import pytest
 import os
-import shutil
 import tempfile
+
+import pytest
 
 os.environ["INGESTION_RATE_LIMIT"] = "10000/minute"
 os.environ["QUERY_RATE_LIMIT"] = "10000/minute"
 from pathlib import Path
+
 from fpdf import FPDF
 from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.messages import AIMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 
 
 @pytest.fixture
@@ -57,7 +58,7 @@ def sample_pdfs(pdf_factory, temp_dir):
     src.mkdir()
     pdf_factory(src, "Apple banana fruit are delicious and healthy.", "doc1.pdf")
     pdf_factory(src, "Dog cat animal are popular pets in households.", "doc2.pdf")
-    pdf_factory(src, "Machine learning artificial intelligence is transforming technology.", "doc3.pdf")
+    pdf_factory(src, "Machine learning artificial intelligence is transforming technology.", "doc3.pdf")  # noqa: E501
     return src
 
 
@@ -153,9 +154,9 @@ def mock_connectors(monkeypatch):
     for k, v in env_settings.items():
         monkeypatch.setenv(k, v)
 
-    import ragframework.api.routers.query
-    import ragframework.api.routers.ingestion
     import ragframework.api.routers.health
+    import ragframework.api.routers.ingestion
+    import ragframework.api.routers.query
 
     mock_vs = MockVectorStore()
     mock_llm = MockChatModel()
@@ -163,7 +164,7 @@ def mock_connectors(monkeypatch):
 
     monkeypatch.setattr(ragframework.api.routers.query, "get_vector_store", lambda s: mock_vs)
     monkeypatch.setattr(ragframework.api.routers.query, "get_llm", lambda s: mock_llm)
-    monkeypatch.setattr(ragframework.api.routers.query, "build_rag_chain", lambda *a, **kw: mock_chain)
+    monkeypatch.setattr(ragframework.api.routers.query, "build_rag_chain", lambda *a, **kw: mock_chain)  # noqa: E501
     monkeypatch.setattr(ragframework.api.routers.ingestion, "get_vector_store", lambda s: mock_vs)
     monkeypatch.setattr(ragframework.api.routers.health, "get_vector_store", lambda s: mock_vs)
     monkeypatch.setattr(ragframework.api.routers.health, "get_llm", lambda s: mock_llm)
