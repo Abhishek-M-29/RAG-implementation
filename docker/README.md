@@ -6,7 +6,7 @@ This directory contains the container images and Docker Compose configuration fo
 
 ```bash
 # 1. Clone the repository
-git clone <repo-url> && cd ragframework
+git clone https://github.com/Abhishek-M-29/RAG-implementation.git && cd RAG-implementation
 
 # 2. Create environment config from the template
 cp .env.example .env
@@ -84,7 +84,7 @@ All configuration is driven by `.env` (see `.env.example` at the repo root). Key
 | Variable | Default | Description |
 |---|---|---|
 | `LLM_CONFIG__API_KEY` | — | **Required.** Your Gemini API key |
-| `LLM_CONFIG__MODEL` | `gemini-2.0-flash-lite` | Gemini model name |
+| `LLM_CONFIG__MODEL` | `gemini-3.1-flash-lite` | Gemini model name |
 | `REDIS_URL` | `redis://redis:6379/0` | Redis connection string |
 | `ASYNC_INGESTION` | `true` | Enable async ingestion via RQ worker |
 | `CORS_ALLOWED_ORIGINS` | `["http://localhost:3000"]` | Allowed frontend origins |
