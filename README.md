@@ -11,7 +11,7 @@
 [![Gemini](https://img.shields.io/badge/Gemini-LLM-4285F4?style=flat-square&logo=google)](https://ai.google.dev)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
-[Quickstart](#quickstart) • [Configuration](#configuration) • [API](#api) • [Docker](#docker) • [Connectors](#adding-a-connector) • [Contributing](CONTRIBUTING.md)
+[Quickstart](#quickstart) • [Native Setup](#detailed-setup-instructions-native) • [Docker Setup](#docker-setup) • [Configuration](#configuration) • [API](#api) • [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -28,40 +28,87 @@ RAG Framework is a **distributable RAG orchestration framework** you run on your
 
 ## Quickstart
 
-Three steps to a running instance:
+Clone the repository and set up your `.env` configuration file:
 
 ```bash
-pip install ragframework
-```
+git clone https://github.com/Abhishek-M-29/RAG-implementation.git
+cd RAG-implementation
 
-Copy and fill in your configuration:
-
-```bash
 # Create .env from the template
 cp .env.example .env
-# Edit .env — set at minimum LLM_CONFIG__API_KEY=your-gemini-key
+
+# Edit .env and set your Gemini API key:
+# LLM_CONFIG__API_KEY=your-gemini-key
+# LLM_CONFIG__MODEL=gemini-1.5-flash
 ```
 
-Start the server:
+Next, follow the instructions for either **[Native Setup](#detailed-setup-instructions-native)** or **[Docker Setup](#docker-setup)**.
+
+---
+
+## Detailed Setup Instructions (Native)
+
+If you prefer to run the backend and frontend locally without Docker, follow these steps. 
+**Note:** Running natively defaults to the in-memory cache and synchronous ingestion.
+
+### 1. Backend Setup
+
+The backend runs on Python 3.10+ using FastAPI.
 
 ```bash
-ragframework serve
+# 1. Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
+
+# 2. Install dependencies (including optional 'redis' and 'dev' features)
+pip install -e ".[redis,dev]"
+
+# 3. Start the FastAPI backend server
+python main.py serve
 ```
 
-The API is now running at `http://localhost:8000`. Try it:
-
+The backend API is now running at `http://localhost:8000`. You can test the liveness probe:
 ```bash
 curl http://localhost:8000/v1/health
 ```
 
-> **No Docker? No problem.** The pip path runs everything locally with the
-> in-memory cache and synchronous ingestion. If you need Redis-backed caching,
-> session memory, or async ingestion, see the [Docker](#docker) section.
+### 2. Frontend Setup
+
+The frontend is a React Single Page Application (SPA) built with Vite and TypeScript.
+
+```bash
+# 1. Open a new terminal and navigate to the frontend directory
+cd frontend
+
+# 2. Install Node dependencies (requires Node.js 18+)
+npm install
+
+# 3. Start the Vite development server
+npm run dev
+```
+
+The frontend application is now running at `http://localhost:5173`. Open this URL in your browser to interact with the RAG Framework.
+
+---
+
+## Docker Setup
+
+For the full production-ready stack including asynchronous job queues (Redis + RQ worker), run the following:
+
+```bash
+# Assuming you have already created and edited your .env file
+docker compose -f docker/docker-compose.yml up --build
+```
+
+This starts:
+- **Redis** — job queue + cache/memory backend
+- **API** — FastAPI on `:8000`
+- **Worker** — RQ ingestion worker
+- **Frontend** — React SPA on `:3000` (Note: Docker maps the frontend to port 3000)
 
 ## Configuration
 
-All configuration is via environment variables or a `.env` file in the working
-directory. The `Settings` model is defined in `ragframework/config.py`.
+All configuration is via environment variables or a `.env` file in the root directory.
 
 ### Connector selection
 
@@ -74,7 +121,6 @@ directory. The `Settings` model is defined in `ragframework/config.py`.
 | `LLM_PROVIDER` | `google_genai` | LLM provider (`google_genai` only in this release) |
 | `LLM_CONFIG__API_KEY` | — | **Required.** Your Google Gemini API key |
 | `LLM_CONFIG__MODEL` | `gemini-3.1-flash-lite` | Gemini model name |
-| `LLM_CONFIG__TIMEOUT` | — | Per-provider timeout override (overrides `LLM_TIMEOUT_SECONDS`) |
 | `LLM_TIMEOUT_SECONDS` | `30.0` | Timeout for LLM calls |
 
 ### Chunking & retrieval
@@ -110,7 +156,6 @@ directory. The `Settings` model is defined in `ragframework/config.py`.
 |---|---|---|
 | `ASYNC_INGESTION` | `false` | Enable async ingestion via RQ (requires Redis) |
 | `OBJECT_STORAGE_PATH` | `uploads/` | Directory for uploaded files |
-| `OBJECT_STORAGE_TIMEOUT_SECONDS` | `30.0` | Timeout for file operations |
 | `MAX_UPLOAD_SIZE_BYTES` | `50000000` | Maximum upload file size (50 MB) |
 
 ### Observability
@@ -119,20 +164,12 @@ directory. The `Settings` model is defined in `ragframework/config.py`.
 |---|---|---|
 | `LOG_LEVEL` | `INFO` | Logging level |
 | `LOG_RAW_QUERIES` | `false` | Log full query text |
-| `OTEL_EXPORTER_ENDPOINT` | — | OpenTelemetry OTLP gRPC endpoint (optional) |
-| `RAG_TRACING_PROVIDER` | `none` | LangChain tracing provider (`none`, `langsmith`, `langfuse`) |
 
 ### CORS
 
 | Variable | Default | Description |
 |---|---|---|
-| `CORS_ALLOWED_ORIGINS` | `[]` | JSON list of allowed CORS origins, e.g. `["http://localhost:3000"]` |
-
-### LLM generation
-
-| Variable | Default | Description |
-|---|---|---|
-| `MAX_TOKENS_PER_REQUEST` | `4000` | Estimated token budget guard |
+| `CORS_ALLOWED_ORIGINS` | `[]` | JSON list of allowed CORS origins, e.g. `["http://localhost:3000", "http://localhost:5173"]` |
 
 ## API
 
@@ -159,31 +196,6 @@ data: {"type": "token", "content": " and continues."}
 data: {"type": "metadata", "sources": [...], "cached": false}
 ```
 
-## Docker
-
-For the full stack (API + ingestion worker + Redis + frontend):
-
-```bash
-git clone https://github.com/Abhishek-M-29/RAG-implementation.git
-cd RAG-implementation
-cp .env.example .env
-# Edit .env
-docker compose -f docker/docker-compose.yml up
-```
-
-This starts:
-- **Redis** — job queue + cache/memory backend
-- **API** — FastAPI on `:8000`
-- **Worker** — RQ ingestion worker
-- **Frontend** — React SPA on `:3000`
-
-## Per-connector guides
-
-- [FAISS + Google Gemini](docs/connectors/faiss-gemini.md) — the shipped default
-
-Each connector guide follows a reusable template so a future "pgvector + OpenAI"
-page can slot in without restructuring the docs.
-
 ## Adding a connector
 
 This framework ships with **FAISS** (vector store) and **Google Gemini** (LLM).
@@ -194,75 +206,6 @@ Adding a new backend requires writing exactly one class and registering it:
 3. Add vendor dependencies as an extras group in `pyproject.toml`
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full walkthrough.
-
-## Architecture
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│                       FastAPI (uvicorn)                        │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
-│  │  Query   │  │Ingestion │  │  Health  │  │    Config     │  │
-│  │ (SSE)    │  │ (PDF)    │  │ /ready   │  │  introspection│  │
-│  └────┬─────┘  └────┬─────┘  └──────────┘  └───────────────┘  │
-│       │              │                                          │
-├───────┴──────────────┴──────────────────────────────────────────┤
-│                      Core Layer                                 │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
-│  │  Cache   │  │  Memory  │  │  RAG     │  │  Token budget │  │
-│  │ (mem/redis)│ (mem/redis)│  │  chain   │  │  guard        │  │
-│  └──────────┘  └──────────┘  └──────────┘  └───────────────┘  │
-├────────────────────────────────────────────────────────────────┤
-│                 Connector Layer (pluggable)                     │
-│  ┌─────────────────────┐  ┌──────────────────────────────┐     │
-│  │  BaseVectorStore    │  │     BaseLLMProvider           │     │
-│  │  ├─ FAISS (shipped) │  │     ├─ Google Gemini (shipped)│     │
-│  │  └─ pgvector (next) │  │     └─ OpenAI (next)          │     │
-│  └─────────────────────┘  └──────────────────────────────┘     │
-├────────────────────────────────────────────────────────────────┤
-│                    Infrastructure                               │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────────────────┐     │
-│  │  Redis   │  │  RQ      │  │  OpenTelemetry            │     │
-│  │ (cache/  │  │ (async   │  │  (metrics/tracing/logs)   │     │
-│  │  memory) │  │  ingest) │  │                           │     │
-│  └──────────┘  └──────────┘  └──────────────────────────┘     │
-└────────────────────────────────────────────────────────────────┘
-```
-
-### Stack
-
-| Component | Technology |
-|---|---|
-| Framework | Python 3.10+, LangChain 0.3 |
-| API server | FastAPI + uvicorn |
-| Vector store | FAISS (shipped); extendable via `BaseVectorStore` |
-| LLM | Google Gemini (shipped); extendable via `BaseLLMProvider` |
-| Embeddings | `sentence-transformers/all-MiniLM-L6-v2` |
-| Cache | In-memory (`cachetools.TTLCache`) or Redis |
-| Session memory | In-memory or Redis |
-| Async jobs | RQ (Redis-backed) |
-| Auth | API-key scopes (`query`, `ingest`) + `slowapi` rate limiting |
-| Observability | OpenTelemetry (OTLP), structured JSON logging |
-| Frontend | React 19, TypeScript, Vite 8, Tailwind 4 |
-| Deployment | Docker multi-stage builds, docker-compose |
-| CI | GitHub Actions (ruff, pyright, oxlint, tsc, pytest, Docker) |
-
-## Development
-
-```bash
-# Clone and install with dev dependencies
-git clone https://github.com/Abhishek-M-29/RAG-implementation.git
-cd RAG-implementation
-pip install -e ".[dev]"
-
-# Run tests
-pytest tests/ -v
-
-# Lint
-ruff check ragframework/
-
-# Typecheck
-pyright ragframework/
-```
 
 ## License
 
