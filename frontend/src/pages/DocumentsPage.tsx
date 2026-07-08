@@ -14,71 +14,105 @@ import ScrollReveal from '../components/ScrollReveal'
 
 export default function DocumentsPage() {
   const docs = useDocuments()
+  const {
+    state,
+    setLoading,
+    setError,
+    setDocuments,
+    addUpload,
+    updateUpload,
+    removeDocument,
+  } = docs
 
   const fetchDocs = useCallback(async () => {
-    docs.setLoading(true)
-    docs.setError(null)
+    setLoading(true)
+    setError(null)
     try {
       const res = await listDocuments()
-      docs.setDocuments(res.documents)
+      setDocuments(res.documents)
     } catch (err) {
       if (err instanceof ApiError) {
-        docs.setError(err.message)
+        setError(err.message)
       } else {
-        docs.setError('Unable to reach the backend server.')
+        setError('Unable to reach the backend server.')
       }
     }
-  }, [docs])
+  }, [setDocuments, setError, setLoading])
 
   useEffect(() => {
     fetchDocs()
   }, [fetchDocs])
 
+  // Derive a stable string key so the effect only re-runs when an upload's
+  // ID or status genuinely changes — not on every object reference change.
+  const uploadKey = state.uploads.map((u) => `${u.jobId}:${u.status}`).join(',')
+
   useEffect(() => {
-    const active = docs.state.uploads.filter(
+    const active = state.uploads.filter(
       (u) => u.status !== 'done' && u.status !== 'failed',
     )
     if (active.length === 0) return
 
-    const timers: ReturnType<typeof setInterval>[] = []
+    let cancelled = false
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let pollDelay = 1000  // Start at 1s, double up to 8s (exponential backoff)
 
-    for (const upload of active) {
-      const poll = async () => {
+    const pollActiveUploads = async () => {
+      if (cancelled) return
+
+      let shouldRefreshDocs = false
+
+      for (const upload of active) {
         try {
           const res = await getDocumentStatus(upload.jobId)
-          docs.updateUpload(upload.jobId, { status: res.status, error: res.error })
+          updateUpload(upload.jobId, { status: res.status, error: res.error })
           if (res.status === 'done' || res.status === 'failed') {
-            fetchDocs()
+            shouldRefreshDocs = true
           }
         } catch {
-          docs.updateUpload(upload.jobId, { status: 'failed', error: 'Status check failed' })
+          updateUpload(upload.jobId, { status: 'failed', error: 'Status check failed' })
         }
       }
-      poll()
-      const timer = setInterval(poll, 2000)
-      timers.push(timer)
+
+      if (shouldRefreshDocs) {
+        await fetchDocs()
+      }
+
+      if (!cancelled) {
+        timeoutId = setTimeout(pollActiveUploads, pollDelay)
+        pollDelay = Math.min(pollDelay * 2, 8000)  // Cap at 8 seconds
+      }
     }
 
-    return () => timers.forEach(clearInterval)
-  }, [docs.state.uploads, docs, fetchDocs])
+    pollActiveUploads()
+
+    return () => {
+      cancelled = true
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadKey, updateUpload, fetchDocs])
 
   async function handleUpload(file: File) {
     try {
       const res = await apiUpload(file)
-      docs.addUpload({
+      addUpload({
         jobId: res.job_id,
         filename: file.name,
-        status: 'queued',
+        status: res.status,
         error: null,
       })
+      if (res.status === 'done') {
+        await fetchDocs()
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 401 || err.status === 403) {
           return
         }
-        docs.setError(err.message)
+        setError(err.message)
       } else {
-        docs.setError('Upload failed.')
+        setError('Upload failed.')
       }
     }
   }
@@ -86,12 +120,12 @@ export default function DocumentsPage() {
   async function handleDelete(id: string) {
     try {
       await apiDelete(id)
-      docs.removeDocument(id)
+      removeDocument(id)
     } catch (err) {
       if (err instanceof ApiError) {
-        docs.setError(err.message)
+        setError(err.message)
       } else {
-        docs.setError('Delete failed.')
+        setError('Delete failed.')
       }
     }
   }
@@ -139,22 +173,22 @@ export default function DocumentsPage() {
         </div>
 
         <div className="mb-10">
-          <UploadDropzone onUpload={handleUpload} disabled={docs.state.uploads.some((u) => u.status === 'queued' || u.status === 'processing')} />
+            <UploadDropzone onUpload={handleUpload} disabled={state.uploads.some((u) => u.status === 'queued' || u.status === 'processing')} />
         </div>
 
-        {docs.state.error && (
+          {state.error && (
           <div className="mb-6">
-            <ErrorState message="Error" detail={docs.state.error} onRetry={fetchDocs} />
+              <ErrorState message="Error" detail={state.error} onRetry={fetchDocs} />
           </div>
         )}
 
-        {docs.state.uploads.length > 0 && (
+          {state.uploads.length > 0 && (
           <div className="mb-8">
             <h2 className="font-serif text-lg tracking-[-0.02em] text-charcoal mb-4">
               Recent Uploads
             </h2>
             <div className="space-y-2">
-              {docs.state.uploads.map((upload) => (
+                {state.uploads.map((upload) => (
                 <div
                   key={upload.jobId}
                   className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3"
@@ -179,7 +213,7 @@ export default function DocumentsPage() {
           <h2 className="font-serif text-lg tracking-[-0.02em] text-charcoal mb-4">
             Indexed Documents
           </h2>
-          {docs.state.documents.length === 0 && !docs.state.loading ? (
+            {state.documents.length === 0 && !state.loading ? (
             <div className="rounded-lg border border-border bg-surface p-12 text-center">
               <p className="text-sm text-muted">
                 No documents indexed yet. Upload a PDF to get started.
@@ -196,7 +230,7 @@ export default function DocumentsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {docs.state.documents.map((doc, i) => (
+                  {state.documents.map((doc, i) => (
                     <tr
                       key={doc.id}
                       className="border-b border-border last:border-0 transition-colors hover:bg-warm-bone/50"

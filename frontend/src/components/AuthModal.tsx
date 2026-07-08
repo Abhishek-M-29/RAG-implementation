@@ -1,13 +1,25 @@
-import { useState, type FormEvent } from 'react'
-import { Key } from 'phosphor-react'
+import { useState, useEffect, type FormEvent } from 'react'
+import { Key, X } from 'phosphor-react'
 
 interface Props {
   onSubmit: (key: string) => void
+  onDismiss?: () => void
   error?: string
 }
 
-export default function AuthModal({ onSubmit, error }: Props) {
+export default function AuthModal({ onSubmit, onDismiss, error }: Props) {
   const [value, setValue] = useState('')
+
+  // Dismiss on ESC key press
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && onDismiss) {
+        onDismiss()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onDismiss])
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -15,8 +27,24 @@ export default function AuthModal({ onSubmit, error }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/80 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-8">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/80 backdrop-blur-sm"
+      onClick={(e) => {
+        // Dismiss when clicking the backdrop
+        if (e.target === e.currentTarget && onDismiss) onDismiss()
+      }}
+    >
+      <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-8 relative">
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Close auth modal"
+            className="absolute top-4 right-4 flex items-center justify-center rounded p-1 text-muted transition-colors hover:text-charcoal hover:bg-warm-bone cursor-pointer"
+          >
+            <X size={16} weight="bold" />
+          </button>
+        )}
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pale-yellow-bg">
             <Key size={20} className="text-pale-yellow-text" weight="bold" />

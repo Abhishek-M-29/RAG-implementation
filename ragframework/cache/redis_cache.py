@@ -23,4 +23,13 @@ class RedisCache(BaseCache):
         self._client.delete(key)
 
     def clear(self) -> None:
-        self._client.flushdb()
+        # Delete only cache-owned key prefixes — do NOT use flushdb() as that
+        # would also wipe session history (session:*) and the index fingerprint.
+        for prefix in ("query:*", "emb:*"):
+            cursor = 0
+            while True:
+                cursor, keys = self._client.scan(cursor, match=prefix, count=200)
+                if keys:
+                    self._client.delete(*keys)
+                if cursor == 0:
+                    break

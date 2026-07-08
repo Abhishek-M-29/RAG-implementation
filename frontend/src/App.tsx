@@ -12,21 +12,30 @@ import SettingsPage from './pages/SettingsPage'
 
 export default function App() {
   const [authOpen, setAuthOpen] = useState(false)
-  const [authError] = useState<string | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
 
   useEffect(() => {
-    onAuthRequired(() => setAuthOpen(true))
+    onAuthRequired((message) => {
+      setAuthError(message)
+      setAuthOpen(true)
+    })
   }, [])
 
   function handleAuthSubmit(key: string) {
     setApiKey(key)
+    setAuthError(null)
+    setAuthOpen(false)
+  }
+
+  function handleAuthDismiss() {
+    setAuthError(null)
     setAuthOpen(false)
   }
 
   return (
     <>
       {authOpen && (
-        <AuthModal onSubmit={handleAuthSubmit} error={authError ?? undefined} />
+        <AuthModal onSubmit={handleAuthSubmit} onDismiss={handleAuthDismiss} error={authError ?? undefined} />
       )}
       <BrowserRouter>
         <ChatProvider>

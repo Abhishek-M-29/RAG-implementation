@@ -1,5 +1,6 @@
 import logging
 import os
+from contextlib import nullcontext
 
 from ragframework.cache import bump_index_fingerprint, get_cache
 from ragframework.config import get_settings
@@ -33,12 +34,11 @@ def process_ingestion_job(file_path: str, source_filename: str, request_id: str 
     tracer = get_tracer()
 
     try:
-        if tracer is not None:
-            with tracer.start_as_current_span("extract_text") as span:
+        ctx = tracer.start_as_current_span("extract_text") if tracer else nullcontext()
+        with ctx as span:
+            if span is not None and tracer:
                 span.set_attribute("source", source_filename)
                 span.set_attribute("request_id", request_id)
-                docs = load_and_extract_text_from_pdfs([file_path])
-        else:
             docs = load_and_extract_text_from_pdfs([file_path])
 
         if not docs:
@@ -47,13 +47,12 @@ def process_ingestion_job(file_path: str, source_filename: str, request_id: str 
                 "the file may be empty, corrupt, or not a valid PDF"
             )
 
-        if tracer is not None:
-            with tracer.start_as_current_span("chunk") as span:
+        ctx = tracer.start_as_current_span("chunk") if tracer else nullcontext()
+        with ctx as span:
+            if span is not None and tracer:
                 span.set_attribute("source", source_filename)
                 span.set_attribute("chunk_size", settings.chunk_size)
                 span.set_attribute("chunk_overlap", settings.chunk_overlap)
-                chunks = chunk_text(docs, settings.chunk_size, settings.chunk_overlap)
-        else:
             chunks = chunk_text(docs, settings.chunk_size, settings.chunk_overlap)
 
         cache = get_cache(settings)

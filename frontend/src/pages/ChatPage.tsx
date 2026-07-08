@@ -48,6 +48,9 @@ export default function ChatPage() {
               break
             case 'error':
               chat.setError(assistantId, event.detail)
+              // Unlock the UI immediately — don't wait for the stream to close
+              chat.setStreaming(false)
+              controller.abort()
               break
           }
         },

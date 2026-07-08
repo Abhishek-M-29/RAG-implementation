@@ -1,7 +1,7 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
 let _apiKey: string | null = null
-let _onAuthRequired: (() => void) | null = null
+let _onAuthRequired: ((message: string) => void) | null = null
 
 export function setApiKey(key: string | null) {
   _apiKey = key
@@ -11,13 +11,13 @@ export function getApiKey(): string | null {
   return _apiKey
 }
 
-export function onAuthRequired(cb: () => void) {
+export function onAuthRequired(cb: (message: string) => void) {
   _onAuthRequired = cb
 }
 
-function handleAuthError(status: number) {
+function handleAuthError(status: number, message: string) {
   if ((status === 401 || status === 403) && _onAuthRequired) {
-    _onAuthRequired()
+    _onAuthRequired(message)
   }
 }
 
@@ -46,7 +46,7 @@ export interface QueryRequest {
 
 export interface DocumentUploadResponse {
   job_id: string
-  status: 'queued'
+  status: 'queued' | 'done'
 }
 
 export interface DocumentListItem {
@@ -79,6 +79,13 @@ export interface ConfigResponse {
 export interface ReadyResponse {
   status: 'ok' | 'not_ready'
   detail?: string
+  vector_store?: { status: 'ok' | 'not_ready'; detail?: string | null }
+  llm?: { status: 'ok' | 'not_ready'; detail?: string | null }
+}
+
+export interface ReadyFetchResult {
+  response: ReadyResponse
+  ok: boolean
 }
 
 export type SSEEvent =
@@ -104,7 +111,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    handleAuthError(res.status)
+    handleAuthError(res.status, body.detail ?? res.statusText)
     throw new ApiError(res.status, body.detail ?? res.statusText)
   }
   return res.json() as Promise<T>
@@ -125,7 +132,7 @@ export async function postQuery(
 
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}))
-    handleAuthError(resp.status)
+    handleAuthError(resp.status, body.detail ?? resp.statusText)
     throw new ApiError(resp.status, body.detail ?? resp.statusText)
   }
 
@@ -164,7 +171,7 @@ export async function uploadDocument(file: File): Promise<DocumentUploadResponse
   const res = await fetch(url, { method: 'POST', headers: h, body: form })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    handleAuthError(res.status)
+    handleAuthError(res.status, body.detail ?? res.statusText)
     throw new ApiError(res.status, body.detail ?? res.statusText)
   }
   return res.json()
@@ -182,8 +189,20 @@ export async function deleteDocument(id: string): Promise<DeleteResponse> {
   return request<DeleteResponse>(`/v1/documents/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
-export async function getReadyStatus(): Promise<ReadyResponse> {
-  return request<ReadyResponse>('/v1/ready')
+
+export async function fetchReadyStatus(): Promise<ReadyFetchResult> {
+  const url = `${BASE_URL}/v1/ready`
+  const res = await fetch(url, {
+    headers: headers(),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    handleAuthError(res.status, body.detail ?? res.statusText)
+  }
+  return {
+    response: body as ReadyResponse,
+    ok: res.ok,
+  }
 }
 
 export async function getConfig(): Promise<ConfigResponse> {

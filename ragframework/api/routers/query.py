@@ -6,6 +6,7 @@ import logging
 import re
 import time
 from collections.abc import Iterator
+from contextlib import nullcontext
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -34,8 +35,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["query"])
 
-_settings = Settings()
-_query_rate_limit = _settings.query_rate_limit
+_query_rate_limit = get_settings().query_rate_limit
 
 
 SSE_MEDIA_TYPE = "text/event-stream"
@@ -191,13 +191,15 @@ def query_endpoint(
     cache = get_cache(settings)
     if settings.async_ingestion and settings.redis_url:
         import redis
-        fingerprint = index_fingerprint(
-            redis_client=redis.from_url(
-                settings.redis_url,
-                socket_connect_timeout=settings.object_storage_timeout_seconds,
-                socket_timeout=settings.object_storage_timeout_seconds,
-            )
+        _rc = redis.from_url(
+            settings.redis_url,
+            socket_connect_timeout=settings.object_storage_timeout_seconds,
+            socket_timeout=settings.object_storage_timeout_seconds,
         )
+        try:
+            fingerprint = index_fingerprint(redis_client=_rc)
+        finally:
+            _rc.connection_pool.disconnect()
     else:
         fingerprint = index_fingerprint()
     ck = _query_cache_key(body.query, top_k, fingerprint)
@@ -226,15 +228,11 @@ def query_endpoint(
 
     tracer = get_tracer()
     t_embed = time.monotonic()
-    if tracer is not None:
-        with tracer.start_as_current_span("embed_query") as span:
+    ctx = tracer.start_as_current_span("embed_query") if tracer else nullcontext()
+    with ctx as span:
+        if span is not None and tracer:
             span.set_attribute("query.hash", qhash)
             span.set_attribute("top_k", top_k)
-            with tracer.start_as_current_span("vector_search") as vs_span:
-                vs_span.set_attribute("query.hash", qhash)
-                vs_span.set_attribute("top_k", top_k)
-                raw_docs = vector_store.similarity_search(body.query, k=top_k)
-    else:
         raw_docs = vector_store.similarity_search(body.query, k=top_k)
     embed_latency = time.monotonic() - t_embed
     record_latency("embedding", embed_latency)
@@ -259,12 +257,11 @@ def query_endpoint(
     memory = get_memory(settings)
     retriever = RunnableLambda(lambda _: raw_docs)
 
-    if tracer is not None:
-        with tracer.start_as_current_span("build_prompt") as span:
+    ctx = tracer.start_as_current_span("build_prompt") if tracer else nullcontext()
+    with ctx as span:
+        if span is not None and tracer:
             span.set_attribute("query.hash", qhash)
             span.set_attribute("source_count", len(sources))
-            chain = build_rag_chain(llm, retriever, get_session_history=memory.get_history)
-    else:
         chain = build_rag_chain(llm, retriever, get_session_history=memory.get_history)
 
     return StreamingResponse(

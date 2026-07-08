@@ -1,4 +1,5 @@
 import logging
+import threading
 
 from opentelemetry import metrics
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
@@ -123,13 +124,8 @@ def record_retry_attempt(stage: str) -> None:
         _retry_attempt_counter.add(1, {"stage": stage})
 
 
-def record_queue_depth(depth: int) -> None:
-    if _queue_depth_gauge is not None:
-        _queue_depth_gauge.add(depth - _get_last_queue_depth())
-        _set_last_queue_depth(depth)
-
-
 _last_queue_depth: int = 0
+_queue_depth_lock = threading.Lock()
 
 
 def _get_last_queue_depth() -> int:
@@ -140,3 +136,11 @@ def _get_last_queue_depth() -> int:
 def _set_last_queue_depth(depth: int) -> None:
     global _last_queue_depth
     _last_queue_depth = depth
+
+
+def record_queue_depth(depth: int) -> None:
+    if _queue_depth_gauge is not None:
+        with _queue_depth_lock:
+            delta = depth - _get_last_queue_depth()
+            _set_last_queue_depth(depth)
+        _queue_depth_gauge.add(delta)

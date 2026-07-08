@@ -3,11 +3,11 @@ import logging
 import os
 import time
 import uuid
+from contextlib import nullcontext
 
 from langchain_community.document_loaders import PyPDFLoader
 from pypdf import PdfReader
 
-from ragframework.cache import bump_index_fingerprint
 from ragframework.observability.metrics import record_cache_hit, record_cache_miss, record_latency
 from ragframework.observability.tracing import get_tracer
 
@@ -123,12 +123,11 @@ def embed_and_index_chunks(chunks, settings, cache, vector_store, source_filenam
 
         tracer = get_tracer()
         t0 = time.monotonic()
-        if tracer is not None:
-            with tracer.start_as_current_span("embed_batch") as span:
+        ctx = tracer.start_as_current_span("embed_batch") if tracer else nullcontext()
+        with ctx as span:
+            if span is not None and tracer is not None:
                 span.set_attribute("chunk_count", len(texts_to_embed))
                 span.set_attribute("source", source_filename)
-                new_vectors = embedding_model.embed_documents(texts_to_embed)
-        else:
             new_vectors = embedding_model.embed_documents(texts_to_embed)
         embedding_time = time.monotonic() - t0
         record_latency("embedding", embedding_time)
@@ -139,19 +138,15 @@ def embed_and_index_chunks(chunks, settings, cache, vector_store, source_filenam
             cache.set(ck, json.dumps(vec), ttl_seconds=None)
 
     tracer = get_tracer()
-    if tracer is not None:
-        with tracer.start_as_current_span("upsert") as span:
+    ctx = tracer.start_as_current_span("upsert") if tracer else nullcontext()
+    with ctx as span:
+        if span is not None and tracer is not None:
             span.set_attribute("chunk_count", len(chunks))
             span.set_attribute("source", source_filename)
-            vector_store.add_embedded_documents(
-                list(zip(texts, embedded_vectors)), metadatas,
-            )
-    else:
         vector_store.add_embedded_documents(
             list(zip(texts, embedded_vectors)), metadatas,
         )
 
-    bump_index_fingerprint()
     logger.info(
         "Indexed %d chunks from %s",
         len(chunks), source_filename,

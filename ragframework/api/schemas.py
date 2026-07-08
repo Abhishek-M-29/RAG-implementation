@@ -23,7 +23,7 @@ class QueryResponse(BaseModel):
 
 class DocumentUploadResponse(BaseModel):
     job_id: str
-    status: Literal["queued"]
+    status: Literal["queued", "done"]
 
 
 class DocumentListItem(BaseModel):
@@ -44,6 +44,18 @@ class JobStatusResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+
+
+class ComponentHealthResponse(BaseModel):
+    status: Literal["ok", "not_ready"]
+    detail: str | None = None
+
+
+class ReadyResponse(BaseModel):
+    status: Literal["ok", "not_ready"]
+    detail: str | None = None
+    vector_store: ComponentHealthResponse | None = None
+    llm: ComponentHealthResponse | None = None
 
 
 class DeleteResponse(BaseModel):

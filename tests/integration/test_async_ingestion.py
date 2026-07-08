@@ -122,9 +122,9 @@ class TestSchema:
         assert r.error == "Something broke"
 
     def test_document_upload_response(self):
-        r = DocumentUploadResponse(job_id="abc", status="queued")
+        r = DocumentUploadResponse(job_id="abc", status="done")
         assert r.job_id == "abc"
-        assert r.status == "queued"
+        assert r.status == "done"
 
     def test_job_status_accepts_any_string_status(self):
         r = JobStatusResponse(job_id="abc", status="invalid")
@@ -221,7 +221,7 @@ class TestSyncIngestion:
         assert response.status_code == 200
         data = response.json()
         assert "job_id" in data
-        assert data["status"] == "queued"
+        assert data["status"] == "done"
 
     def test_post_rejects_non_pdf(self, sync_client):
         response = sync_client.post(
@@ -241,7 +241,7 @@ class TestSyncIngestion:
         assert response.status_code == 200
         data = response.json()
         assert "job_id" in data
-        assert data["status"] == "queued"
+        assert data["status"] == "done"
 
 
 # ===================================================================
@@ -442,7 +442,7 @@ class TestSyncEndToEnd:
         assert ingest_resp.status_code == 200
         data = ingest_resp.json()
         assert "job_id" in data
-        assert data["status"] == "queued"
+        assert data["status"] == "done"
 
     def test_sync_ingestion_cleanup(self, tmp_path, monkeypatch):
         """Sync ingestion cleans up the stored file after processing."""

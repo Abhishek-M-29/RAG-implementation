@@ -21,7 +21,7 @@ class GoogleGenAIProvider(BaseLLMProvider):
     @classmethod
     def from_config(cls, config: dict) -> BaseChatModel:
         api_key = config.get("api_key")
-        model = config.get("model", "gemini-3.1-flash-lite")
+        model = config.get("model", "gemini-2.0-flash-lite")
         timeout = config.get("timeout")
         if not api_key:
             raise ValueError(

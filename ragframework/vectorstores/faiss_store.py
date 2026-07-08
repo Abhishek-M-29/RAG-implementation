@@ -104,14 +104,21 @@ class FaissStore(BaseVectorStore):
             return
 
         id_set = set(ids)
-        existing = list(self._store.docstore._dict.values())  # type: ignore[attr-defined]
-        remaining = [d for d in existing if d.metadata.get("id") not in id_set]
+        # Collect docstore IDs for docs that match by metadata id or source
+        docstore_ids_to_remove = []
+        for docstore_id, doc in self._store.docstore._dict.items():  # type: ignore[attr-defined]
+            meta = doc.metadata or {}
+            if meta.get("id") in id_set or meta.get("source") in id_set:
+                docstore_ids_to_remove.append(docstore_id)
 
-        if len(remaining) == len(existing):
+        if not docstore_ids_to_remove:
             logger.warning("None of the provided IDs were found in the index")
             return
 
-        if not remaining:
+        # Use LangChain's native delete which properly handles index shifting
+        self._store.delete(docstore_ids_to_remove)
+
+        if self._store.index.ntotal == 0:
             self._store = None
             if os.path.exists(self._index_path):
                 import shutil
@@ -119,12 +126,14 @@ class FaissStore(BaseVectorStore):
             logger.info("Deleted all documents — index cleared")
             return
 
-        self._store = FAISS.from_documents(remaining, self._embedding)
         self._persist()
         logger.info(
-            "Deleted %d documents (rebuild complete), %d remain",
-            len(ids), len(remaining),
-            extra={"deleted_count": len(ids), "remaining_count": len(remaining)},
+            "Deleted %d documents using native remove_ids, %d remain",
+            len(faiss_ids_to_remove), self._store.index.ntotal,
+            extra={
+                "deleted_count": len(faiss_ids_to_remove),
+                "remaining_count": self._store.index.ntotal
+            },
         )
 
     def list_documents(self) -> dict[str, int]:
@@ -164,5 +173,6 @@ class FaissStore(BaseVectorStore):
 
     def _persist(self) -> None:
         if self._store is not None:
-            os.makedirs(os.path.dirname(self._index_path), exist_ok=True)
+            parent = os.path.dirname(self._index_path) or "."
+            os.makedirs(parent, exist_ok=True)
             self._store.save_local(self._index_path)

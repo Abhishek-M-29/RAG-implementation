@@ -21,7 +21,11 @@ export default function UploadDropzone({ onUpload, disabled }: Props) {
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) onUpload(file)
+    if (file && file.type === 'application/pdf') {
+      onUpload(file)
+    }
+    // Reset so the same file can be selected again
+    e.target.value = ''
   }
 
   return (

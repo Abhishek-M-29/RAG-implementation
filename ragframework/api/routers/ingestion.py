@@ -25,8 +25,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["documents"])
 
-_settings = Settings()
-_ingestion_rate_limit = _settings.ingestion_rate_limit
+_ingestion_rate_limit = get_settings().ingestion_rate_limit
 
 
 @router.post("/v1/documents", response_model=DocumentUploadResponse)
@@ -108,25 +107,25 @@ def upload_document(
         return DocumentUploadResponse(job_id=job_id, status="queued")
 
     try:
+        from contextlib import nullcontext
+
         from ragframework.cache import get_cache
 
         tracer = get_tracer()
 
-        if tracer is not None:
-            with tracer.start_as_current_span("extract_text") as span:
+        ctx = tracer.start_as_current_span("extract_text") if tracer else nullcontext()
+        with ctx as span:
+            if span is not None and tracer:
                 span.set_attribute("source", file.filename)
                 span.set_attribute("request_id", request_id)
-                docs = load_and_extract_text_from_pdfs([storage_path])
-        else:
             docs = load_and_extract_text_from_pdfs([storage_path])
 
-        if tracer is not None:
-            with tracer.start_as_current_span("chunk") as span:
+        ctx = tracer.start_as_current_span("chunk") if tracer else nullcontext()
+        with ctx as span:
+            if span is not None and tracer:
                 span.set_attribute("source", file.filename)
                 span.set_attribute("chunk_size", settings.chunk_size)
                 span.set_attribute("chunk_overlap", settings.chunk_overlap)
-                chunks = chunk_text(docs, settings.chunk_size, settings.chunk_overlap)
-        else:
             chunks = chunk_text(docs, settings.chunk_size, settings.chunk_overlap)
 
         cache = get_cache(settings)
@@ -156,7 +155,7 @@ def upload_document(
                 "job_id": job_id, "request_id": request_id,
             },
         )
-        return DocumentUploadResponse(job_id=job_id, status="queued")
+        return DocumentUploadResponse(job_id=job_id, status="done")
     finally:
         if os.path.exists(storage_path):
             os.remove(storage_path)
@@ -221,7 +220,7 @@ def get_job_status(
     return JobStatusResponse(job_id=job_id, status=status, error=error)
 
 
-@router.delete("/v1/documents/{id}", response_model=DeleteResponse)
+@router.delete("/v1/documents/{id:path}", response_model=DeleteResponse)
 @limiter.limit(_ingestion_rate_limit)
 def delete_document(
     request: Request,

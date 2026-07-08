@@ -1,26 +1,26 @@
 import { useEffect, useCallback } from 'react'
 import { Database, Robot, ArrowClockwise } from 'phosphor-react'
 import { useStatus } from '../context/StatusContext'
-import { getConfig, getReadyStatus } from '../api/client'
+import { fetchReadyStatus, getConfig } from '../api/client'
 import StatusDot from '../components/StatusDot'
 import ScrollReveal from '../components/ScrollReveal'
 import ErrorState from '../components/ErrorState'
 
 export default function SettingsPage() {
-  const status = useStatus()
+  const { state, setLoading, setConfig, setComponentHealth, setBothError } = useStatus()
 
   const refresh = useCallback(async () => {
-    status.setLoading(true)
+    setLoading(true)
     try {
-      const [config, ready] = await Promise.all([getConfig(), getReadyStatus()])
-      status.setConfig(config)
-      status.setComponentHealth(ready.detail, ready.status)
+      const [config, ready] = await Promise.all([getConfig(), fetchReadyStatus()])
+      setConfig(config)
+      setComponentHealth(ready.response)
     } catch {
-      status.setBothError('Unable to reach the backend server.')
+      setBothError('Unable to reach the backend server.')
     } finally {
-      status.setLoading(false)
+      setLoading(false)
     }
-  }, [status])
+  }, [setLoading, setConfig, setComponentHealth, setBothError])
 
   useEffect(() => {
     refresh()
@@ -38,7 +38,7 @@ export default function SettingsPage() {
           </p>
         </div>
 
-        {status.state.loading ? (
+        {state.loading ? (
           <div className="space-y-4">
             {[0, 1].map((i) => (
               <div
@@ -50,7 +50,7 @@ export default function SettingsPage() {
               </div>
             ))}
           </div>
-        ) : status.state.vectorStore.status === 'error' && !status.state.config ? (
+        ) : state.vectorStore.status === 'error' && !state.config ? (
           <ErrorState
             message="Unable to load settings"
             detail="Check that the backend server is running."
@@ -71,19 +71,19 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between border-b border-border pb-3">
                   <span className="text-sm text-muted">Vector Store</span>
                   <span className="font-mono text-sm text-charcoal bg-warm-bone rounded px-2 py-0.5">
-                    {status.state.config?.vector_store ?? '—'}
+                    {state.config?.vector_store ?? '—'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between border-b border-border pb-3">
                   <span className="text-sm text-muted">LLM Provider</span>
                   <span className="font-mono text-sm text-charcoal bg-warm-bone rounded px-2 py-0.5">
-                    {status.state.config?.llm_provider ?? '—'}
+                    {state.config?.llm_provider ?? '—'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted">Authentication</span>
                   <span className="font-mono text-sm text-charcoal bg-warm-bone rounded px-2 py-0.5">
-                    {status.state.config?.auth_enabled ? 'Enabled' : 'Disabled'}
+                    {state.config?.auth_enabled ? 'Enabled' : 'Disabled'}
                   </span>
                 </div>
               </div>
@@ -111,15 +111,15 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between border-b border-border pb-3">
                   <span className="text-sm text-muted">Vector Store</span>
                   <StatusDot
-                    status={status.state.vectorStore.status}
-                    label={status.state.vectorStore.status === 'ok' ? 'Healthy' : (status.state.vectorStore.detail ?? 'Unknown')}
+                    status={state.vectorStore.status}
+                    label={state.vectorStore.status === 'ok' ? 'Healthy' : (state.vectorStore.detail ?? 'Unknown')}
                   />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted">LLM</span>
                   <StatusDot
-                    status={status.state.llm.status}
-                    label={status.state.llm.status === 'ok' ? 'Reachable' : (status.state.llm.detail ?? 'Unknown')}
+                    status={state.llm.status}
+                    label={state.llm.status === 'ok' ? 'Reachable' : (state.llm.detail ?? 'Unknown')}
                   />
                 </div>
               </div>

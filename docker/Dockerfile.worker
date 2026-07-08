@@ -21,6 +21,6 @@ COPY ragframework/ ragframework/
 COPY main.py .
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD python -c "import os,sys; sys.exit(0 if os.path.exists('/tmp/worker_healthy') else 1)" || exit 1
+    CMD python -c "import sys; cmd = open('/proc/1/cmdline', 'rb').read().replace(b'\x00', b' ').decode('utf-8', 'ignore'); sys.exit(0 if 'python' in cmd and 'main.py worker' in cmd else 1)" || exit 1
 
 CMD ["python", "main.py", "worker"]

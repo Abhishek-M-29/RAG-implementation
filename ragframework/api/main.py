@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_huggingface import HuggingFaceEmbeddings
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -70,22 +69,40 @@ def _setup_rag_tracing(settings: Settings) -> None:
         logger.info("RAG tracing enabled via LangSmith")
     elif provider == "langfuse":
         import os as _os
-        if "LANGFUSE_ENABLE" not in _os.environ:
-            _os.environ["LANGFUSE_ENABLE"] = "true"
+        if "LANGFUSE_ENABLED" not in _os.environ:
+            _os.environ["LANGFUSE_ENABLED"] = "true"
         logger.info("RAG tracing enabled via Langfuse")
 
 
-def _warm_models(settings: Settings):
+def _warm_models(settings: Settings) -> None:
+    """Pre-load models at startup so the first request is fast.
+
+    We inject the live embedding-model object directly into the
+    vector-store config dict that ``get_vector_store`` will use,
+    without mutating the shared ``Settings`` singleton.
+    """
+    from langchain_huggingface import HuggingFaceEmbeddings
     embedding_model = HuggingFaceEmbeddings(model_name=settings.embedding_model)
-    settings.vector_store_config = {
-        **settings.vector_store_config,
+
+    # Build an augmented config that carries the pre-loaded model object.
+    # We temporarily swap the vector_store_config for the duration of the
+    # get_vector_store call so the singleton is initialised with the warm model.
+    original_config = settings.vector_store_config
+    warm_config = {
+        **original_config,
         "embedding_model": embedding_model,
         "model_name": settings.embedding_model,
     }
-    from ragframework.llms.registry import get_llm
-    from ragframework.vectorstores.registry import get_vector_store
-    get_vector_store(settings)
-    get_llm(settings)
+    # Pydantic v2 allows mutation via model_config extra='ignore'; use object.__setattr__
+    # to avoid triggering validators, then restore immediately after the singleton is built.
+    object.__setattr__(settings, "vector_store_config", warm_config)
+    try:
+        from ragframework.llms.registry import get_llm
+        from ragframework.vectorstores.registry import get_vector_store
+        get_vector_store(settings)
+        get_llm(settings)
+    finally:
+        object.__setattr__(settings, "vector_store_config", original_config)
 
 
 def create_app() -> FastAPI:

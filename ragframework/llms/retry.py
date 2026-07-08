@@ -165,6 +165,10 @@ class RetryableChatModel(BaseChatModel):
                     attempt, wait,
                     extra={"error": str(e)},
                 )
+                # NOTE: time.sleep() is intentional here. This generator runs
+                # inside a sync FastAPI endpoint (executed in a thread pool),
+                # not on the async event loop. If you convert query_endpoint
+                # to async def in the future, replace this with asyncio.sleep().
                 time.sleep(wait)
 
     def _stream(self, *args, **kwargs):

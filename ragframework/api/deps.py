@@ -56,6 +56,9 @@ def require_scope(required_scope: str):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"API key does not have '{required_scope}' scope",
             )
+
+    # Give the dependency a unique name so FastAPI tracing/logs distinguish scopes
+    _check.__name__ = f"require_scope_{required_scope}"
     return _check
 
 
